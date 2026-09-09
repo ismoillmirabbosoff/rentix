@@ -78,7 +78,7 @@ cd rentix-deploy
 4. hamma servisni ishga tushiradi, migratsiyalarni bajaradi
 5. baza bo'sh bo'lsa demo ma'lumot yuklaydi va kirish ma'lumotlarini chiqaradi
 
-Papkalar tuzilishi shunday bo'ladi:
+Papkalar tuzilishi shunday bo'lishi kerak:
 
 ```
 rentix/
@@ -86,6 +86,31 @@ rentix/
 ├── rentix-backend/
 ├── rentix-user/
 └── rentix-admin/
+```
+
+### Monorepo (hammasi bitta repoda)
+
+```bash
+git clone <monorepo url> rentix
+cd rentix
+git submodule update --init --recursive   # submodule ishlatilgan bo'lsa
+cd rentix-deploy && ./deploy.sh install
+```
+
+> **Diqqat:** klondan keyin `ls rentix-backend` bo'sh chiqsa — kod hali
+> yuklab olinmagan. `deploy.sh` buni o'zi aniqlab, nima qilish kerakligini
+> aytadi. Submodule bo'lmasa, uch papka monorepoga to'g'ridan-to'g'ri
+> commit qilingan bo'lishi kerak.
+
+### Alohida repolar
+
+```bash
+mkdir rentix && cd rentix
+git clone <deploy url>   rentix-deploy
+git clone <backend url>  rentix-backend
+git clone <user url>     rentix-user
+git clone <admin url>    rentix-admin
+cd rentix-deploy && ./deploy.sh install
 ```
 
 Sertifikat 1–2 daqiqada olinadi. Kuzatish: `./deploy.sh logs caddy`

@@ -28,6 +28,23 @@ head_() { echo; echo "${BLD}$*${OFF}"; echo "${BLD}$(printf '─%.0s' $(seq 1 60
 
 # ─────────────────────────────────────────────────────────── yordamchi funksiyalar
 
+usage() {
+  cat <<'USAGE'
+Rentix deployment skripti
+
+  ./deploy.sh install    — birinchi marta: repolarni tekshirish, .env, build, up
+  ./deploy.sh update     — kodni yangilash va qayta build qilish
+  ./deploy.sh seed       — demo ma'lumot yuklash (BAZANI TOZALAYDI!)
+  ./deploy.sh superuser  — Django admin uchun superuser yaratish
+  ./deploy.sh status     — konteynerlar holati va sog'lig'i
+  ./deploy.sh logs [nom] — loglar
+  ./deploy.sh restart    — qayta ishga tushirish
+  ./deploy.sh backup     — bazaning zaxira nusxasi
+  ./deploy.sh creds      — kirish ma'lumotlarini ko'rsatish
+  ./deploy.sh down       — to'xtatish (ma'lumot saqlanadi)
+USAGE
+}
+
 dc() { docker compose "$@"; }
 
 require_tools() {
@@ -72,27 +89,82 @@ check_env() {
   [ ${#missing[@]} -eq 0 ] || die ".env da quyidagilar bo'sh: ${missing[*]}"
 }
 
-sync_repos() {
-  head_ "1/4  Repolar"
+
+# Har bir manba papkasida bo'lishi shart bo'lgan fayllar
+declare -A REQUIRED=(
+  [rentix-backend]="Dockerfile manage.py requirements.txt"
+  [rentix-user]="Dockerfile package.json nginx.conf"
+  [rentix-admin]="Dockerfile package.json nginx.conf"
+)
+
+preflight_sources() {
+  local missing=() r f
   for r in "${REPOS[@]}"; do
-    if [ -d "../$r/.git" ]; then
+    if [ ! -d "../$r" ]; then
+      missing+=("$r (papka umuman yo'q)")
+      continue
+    fi
+    for f in ${REQUIRED[$r]}; do
+      [ -f "../$r/$f" ] || { missing+=("$r/$f"); break; }
+    done
+  done
+
+  [ ${#missing[@]} -eq 0 ] && return 0
+
+  echo
+  die "Manba kodi topilmadi:
+    $(printf '%s\n    ' "${missing[@]}")
+  Papkalar bo'sh — kod hali yuklab olinmagan.
+
+  Agar submodule ishlatilgan bo'lsa:
+      git -C .. submodule update --init --recursive
+
+  Agar alohida repolar bo'lsa (yonma-yon klonlash):
+      cd .. && git clone <rentix-backend url> rentix-backend \\
+                 && git clone <rentix-user url> rentix-user \\
+                 && git clone <rentix-admin url> rentix-admin
+
+  Tekshirish:  ls ../rentix-backend"
+}
+
+sync_repos() {
+  head_ "1/4  Manba kodi"
+
+  # Ota-papka git repo bo'lsa — monorepo (yoki submodule konteyner)
+  if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
+    if [ -n "$(git -C .. status --porcelain --untracked-files=no)" ]; then
+      warn "monorepoda saqlanmagan o'zgarishlar bor — pull o'tkazib yuborildi"
+    else
+      info "monorepo yangilanmoqda"
+      git -C .. pull --ff-only --quiet 2>/dev/null \
+        && ok "monorepo $(git -C .. rev-parse --short HEAD)" \
+        || warn "pull bajarilmadi (masofaviy repo yoki branch sozlanmagan)"
+    fi
+    if [ -f "../.gitmodules" ]; then
+      info "submodule lar yangilanmoqda"
+      git -C .. submodule update --init --recursive --quiet \
+        && ok "submodule lar tayyor" \
+        || warn "submodule update bajarilmadi"
+    fi
+  fi
+
+  # Har bir papka alohida repo bo'lsa — o'zini yangilaydi
+  local r
+  for r in "${REPOS[@]}"; do
+    if [ -d "../$r/.git" ] && [ ! -f "../$r/.git" ]; then
       if [ -n "$(git -C "../$r" status --porcelain --untracked-files=no)" ]; then
         warn "$r da saqlanmagan o'zgarishlar bor — sync o'tkazib yuborildi"
-        warn "  (majburan yangilash: git -C ../$r reset --hard origin/main)"
-      else
-        info "$r — yangilanmoqda"
-        git -C "../$r" fetch --quiet origin
-        git -C "../$r" reset --hard --quiet origin/main
-        ok "$r $(git -C "../$r" rev-parse --short HEAD)"
+      elif git -C "../$r" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+        git -C "../$r" fetch --quiet origin 2>/dev/null || true
+        git -C "../$r" reset --hard --quiet origin/main 2>/dev/null \
+          && ok "$r $(git -C "../$r" rev-parse --short HEAD)" \
+          || warn "$r yangilanmadi"
       fi
-    elif [ -d "../$r" ]; then
-      warn "$r papkasi bor, lekin git repo emas — o'z holicha ishlatiladi"
-    else
-      info "$r — klonlanmoqda"
-      git clone --quiet "$GIT_ORG/$r.git" "../$r" || die "$r ni klonlab bo'lmadi. SSH kalitni tekshiring: ssh -T git@github.com"
-      ok "$r klonlandi"
     fi
   done
+
+  preflight_sources
+  ok "uchala manba papkasi joyida"
 }
 
 wait_healthy() {
@@ -263,7 +335,5 @@ case "${1:-}" in
   backup)    cmd_backup ;;
   down)      cmd_down ;;
   creds)     check_env; show_credentials ;;
-  *)
-    sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
-    exit 1 ;;
+  *)   usage; exit 1 ;;
 esac
