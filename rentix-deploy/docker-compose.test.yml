@@ -1,0 +1,13 @@
+# FAQAT LOKAL SINOV UCHUN — serverda ishlatilmaydi.
+#
+# Haqiqiy domenlarsiz ham stackni sinash imkonini beradi: Caddy Let's Encrypt
+# o'rniga o'z-o'ziga imzolangan sertifikat ishlatadi.
+#
+#   COMPOSE_FILE="docker-compose.yml:docker-compose.test.yml" ./deploy.sh install
+#   curl -k --resolve user.rentix.uz:443:127.0.0.1 https://user.rentix.uz/
+services:
+  caddy:
+    volumes:
+      - ./Caddyfile.test:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config

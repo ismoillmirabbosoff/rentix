@@ -1,0 +1,74 @@
+# =============================================================================
+# Caddy — reverse proxy + avtomatik HTTPS (Let's Encrypt)
+#
+# Sertifikatlar birinchi ishga tushishda avtomatik olinadi. Buning uchun
+# domenlarning A-record'i shu serverga qaratilgan va 80/443 portlar
+# tashqaridan ochiq bo'lishi SHART.
+#
+# Agar api domenidan foydalanmoqchi bo'lmasangiz — eng oxirgi blokni
+# (api.rentix.uz) o'chirib tashlang va .env dan API_DOMAIN ni bo'sh qoldiring.
+# =============================================================================
+{
+	email {$ACME_EMAIL}
+	# Sertifikat olishda muammo bo'lsa quyidagi qatorni yoqib sinab ko'ring
+	# (Let's Encrypt test serveri, brauzer ishonmaydi, lekin limitga urilmaydi):
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+# Barcha saytlar uchun umumiy sozlamalar
+(common) {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# ─────────────────────────────────────────────── Mijoz ilovasi (Telegram mini-app)
+{$USER_DOMAIN} {
+	import common
+
+	reverse_proxy rentix-user:80 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# ──────────────────────────────────────────────────── Admin / menejer paneli
+{$ADMIN_DOMAIN} {
+	import common
+
+	reverse_proxy rentix-admin:80 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# ───────────────────────────────── Backend: Django admin, swagger, telegram webhook
+{$API_DOMAIN} {
+	import common
+
+	# Fayl yuklash uchun 20 MB
+	request_body {
+		max_size 20MB
+	}
+
+	# WebSocket ham shu proxy orqali o'tadi (Caddy avtomatik qo'llab-quvvatlaydi)
+	reverse_proxy rentix-backend:8000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		transport http {
+			read_timeout 300s
+			write_timeout 300s
+		}
+	}
+}

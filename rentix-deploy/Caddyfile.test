@@ -1,0 +1,39 @@
+# FAQAT LOKAL SINOV UCHUN (docker-compose.test.yml bilan birga ishlatiladi)
+{
+	auto_https disable_redirects
+}
+
+(common) {
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+}
+
+{$USER_DOMAIN} {
+	tls internal
+	import common
+	reverse_proxy rentix-user:80 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	tls internal
+	import common
+	reverse_proxy rentix-admin:80 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+{$API_DOMAIN} {
+	tls internal
+	import common
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy rentix-backend:8000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

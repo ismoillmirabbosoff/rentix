@@ -1,0 +1,169 @@
+# =============================================================================
+# Rentix — to'liq produkshn stack
+#
+#   Internet :80/:443
+#        │
+#        ▼
+#      Caddy  (avtomatik Let's Encrypt sertifikat)
+#        ├── user.rentix.uz  ──►  rentix-user   (nginx + SPA)
+#        ├── admin.rentix.uz ──►  rentix-admin  (nginx + SPA)
+#        └── api.rentix.uz   ──►  rentix-backend (Django admin, swagger, telegram webhook)
+#
+#   Frontend nginx'lari /api/ va /ws/ ni ichki tarmoq orqali backendga uzatadi,
+#   shuning uchun brauzer uchun hech qanday cross-origin so'rov yo'q.
+#
+# Ishga tushirish:  ./deploy.sh install
+# =============================================================================
+
+name: rentix
+
+x-backend-env: &backend-env
+  env_file:
+    - .env
+  environment:
+    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    REDIS_URL: redis://redis:6379/0
+
+x-backend-build: &backend-build
+  build:
+    context: ../rentix-backend
+    dockerfile: Dockerfile
+  image: rentix-backend:latest
+  restart: unless-stopped
+  networks: [rentix-net]
+
+services:
+
+  # ─────────────────────────────────────────────────────────── Ma'lumotlar bazasi
+  db:
+    image: postgres:16-alpine
+    container_name: rentix-postgres
+    restart: unless-stopped
+    # Load testda 100 ta standart ulanish yetmagani aniqlangan edi
+    command: postgres -c max_connections=200 -c shared_buffers=256MB
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [rentix-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: rentix-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [rentix-net]
+
+  # ─────────────────────────────────────────────────────────────────── Backend
+  backend:
+    <<: [*backend-build, *backend-env]
+    container_name: rentix-backend       # nginx shu nom bo'yicha topadi — o'zgartirmang
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    volumes:
+      - media_data:/app/media
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/user/cars/',timeout=5).status==200 else 1)\""]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  worker:
+    <<: [*backend-build, *backend-env]
+    container_name: rentix-celery-worker
+    command: celery -A RentIx worker -l info --concurrency=2
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    volumes:
+      - media_data:/app/media
+
+  beat:
+    <<: [*backend-build, *backend-env]
+    container_name: rentix-celery-beat
+    command: celery -A RentIx beat -l info
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  # ────────────────────────────────────────────────────────────────── Frontend
+  user-app:
+    build:
+      context: ../rentix-user
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_URL: /api
+        VITE_NOTIFICATIONS_WS_PATH: /ws/notifications/
+    image: rentix-user:latest
+    container_name: rentix-user
+    restart: unless-stopped
+    depends_on: [backend]
+    volumes:
+      # Backend yuklagan rasmlar /media/ manzilida ko'rinishi uchun
+      - media_data:/usr/share/nginx/media:ro
+    networks: [rentix-net]
+
+  admin-app:
+    build:
+      context: ../rentix-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_URL: /api
+        VITE_NOTIFICATIONS_WS_PATH: /ws/notifications/
+    image: rentix-admin:latest
+    container_name: rentix-admin
+    restart: unless-stopped
+    depends_on: [backend]
+    volumes:
+      - media_data:/usr/share/nginx/media:ro
+    networks: [rentix-net]
+
+  # ──────────────────────────────────────────── Reverse proxy + avtomatik TLS
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: rentix-caddy
+    restart: unless-stopped
+    depends_on: [user-app, admin-app, backend]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"          # HTTP/3
+    environment:
+      USER_DOMAIN: ${USER_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # sertifikatlar shu yerda — o'chirmang
+      - caddy_config:/config
+    networks: [rentix-net]
+
+networks:
+  rentix-net:
+    name: rentix-net
+    driver: bridge
+
+volumes:
+  postgres_data: {name: rentix_postgres_data}
+  redis_data:    {name: rentix_redis_data}
+  media_data:    {name: rentix_media_data}
+  caddy_data:    {name: rentix_caddy_data}
+  caddy_config:  {name: rentix_caddy_config}
