@@ -146,26 +146,42 @@ Kirish ma'lumotlarini keyin ham ko'rish: `./deploy.sh creds`
 ./deploy.sh down            # to'xtatish (ma'lumot saqlanadi)
 ```
 
-## 6. SMS: dev → prod
+## 6. SMS (SMSFly)
 
-Hozir dev rejimida:
+Produkshnda `stage` rejimi ishlaydi — haqiqiy SMS yuboriladi:
+
+```env
+SMS_MODE=stage
+SMSFLY_API_KEY=<SMSFly bergan kalit>
+```
+
+Kalitni qo'ygandan keyin **albatta tekshiring**:
+
+```bash
+docker compose exec backend python manage.py sms_check_key
+# kutilgan javob:  success=True reason=KEY_IS_CORRECT resultCode=0
+```
+
+`success=False` bo'lsa `stage` ga o'tmang — kalit ishlamasa hech kim tizimga
+kira olmaydi (OTP kodi yuborilmaydi va javobda ham qaytmaydi).
+
+O'zgartirgandan keyin: `./deploy.sh restart`
+
+### dev rejimi — faqat lokal ishlab chiqish uchun
 
 ```env
 SMS_MODE=dev
 SMS_DEV_CODE=1111
 ```
 
-Bu rejimda tasdiqlash kodi **API javobida ochiq qaytariladi**, ya'ni istalgan odam
-istalgan telefon raqami nomidan tizimga kira oladi. SMSFly kaliti olingach:
+Bu rejimda SMS yuborilmaydi va **tasdiqlash kodi API javobida ochiq qaytadi**.
+Ya'ni istalgan odam istalgan telefon raqami nomidan tizimga kira oladi.
+Serverda hech qachon ishlatmang.
 
-```bash
-nano .env
-#   SMS_MODE=stage
-#   SMSFLY_API_KEY=<kalit>
-./deploy.sh restart
-```
-
-Tekshirish: `docker compose exec backend python manage.py sms_check_key`
+> Eslatma: `stage` ga o'tgandan keyin demo hisobga (`998901112200` + `1111`)
+> kirish ishlamaydi — endi o'sha raqamga haqiqiy SMS ketadi. Prezentatsiya
+> uchun vaqtincha `dev` kerak bo'lsa, ko'rsatuvdan keyin darhol `stage` ga
+> qaytaring.
 
 ## 7. Telegram bot
 
