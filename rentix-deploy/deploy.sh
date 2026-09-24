@@ -312,7 +312,9 @@ cmd_status() {
 }
 
 cmd_logs()    { dc logs -f --tail=100 "${1:-}"; }
-cmd_restart() { check_env; dc restart; wait_healthy rentix-backend 90; cmd_status; }
+# DIQQAT: `docker compose restart` .env o'zgarishlarini QAYTA O'QIMAYDI.
+# Konteynerlar qayta yaratilishi shart, aks holda eski sozlama qoladi.
+cmd_restart() { check_env; dc up -d --force-recreate; wait_healthy rentix-backend 90; cmd_status; }
 cmd_down()    { dc down; ok "To'xtatildi (ma'lumot saqlanib qoldi)"; }
 
 cmd_backup() {
