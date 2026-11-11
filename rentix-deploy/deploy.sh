@@ -312,13 +312,13 @@ cmd_status() {
   for port in "$(env_get USER_PORT)" "$(env_get ADMIN_PORT)"; do
     [ -n "$port" ] || continue
     local lc
-    lc="$(curl -sS -o /dev/null -w '%{http_code}' -m 8 "http://127.0.0.1:$port/" 2>/dev/null || echo "---")"
+    lc="$(curl -sS -o /dev/null -w '%{http_code}' -m 8 "http://127.0.0.1:$port/" 2>/dev/null)" || true
     [ "$lc" = "200" ] && ok "127.0.0.1:$port  →  HTTP $lc" || warn "127.0.0.1:$port  →  $lc"
   done
   for d in "$U" "$A" "$P"; do
     [ -n "$d" ] || continue
     local code
-    code="$(curl -sS -o /dev/null -w '%{http_code}' -m 12 "https://$d/" 2>/dev/null || echo "---")"
+    code="$(curl -sS -o /dev/null -w '%{http_code}' -m 12 "https://$d/" 2>/dev/null)" || true
     if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "404" ]; then
       ok "https://$d  →  HTTP $code"
     else

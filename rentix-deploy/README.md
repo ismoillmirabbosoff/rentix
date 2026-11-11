@@ -117,21 +117,19 @@ Sertifikat 1–2 daqiqada olinadi. Kuzatish: `./deploy.sh logs caddy`
 
 ## 4. Kirish ma'lumotlari
 
-Demo ma'lumot yuklangandan keyin:
+Demo ma'lumot **yuklanmaydi**. `install` faqat kompaniya (admin), filial,
+menejer va ma'lumotnomalarni (viloyatlar, mashina brendlari katalogi) yaratadi.
+Parollar avtomatik generatsiya qilinib, faqat serverdagi `.env` da saqlanadi:
 
-| Kim | Manzil | Login | Parol |
-|---|---|---|---|
-| **Admin** | `https://admin.rentix.uz` | `rentix_admin` | `Rentix2024!` |
-| **Menejer** | `https://admin.rentix.uz` | `rentix_manager` | `Manager2024!` |
+```bash
+./deploy.sh creds              # ko'rish
+# .env da RENTIX_*_PASSWORD ni o'zgartirib:
+./deploy.sh reset-passwords    # qo'llash
+```
 
-**Mijoz ilovasi** (`https://user.rentix.uz`) — telefon raqami + SMS kod orqali.
-Hozir `SMS_MODE=dev` bo'lgani uchun **kod har doim `1111`**, haqiqiy SMS yuborilmaydi.
-
-**Django admin** (`https://api.rentix.uz/admin/`) — `./deploy.sh superuser`
-
-> Birinchi kirishdan keyin parollarni albatta almashtiring.
-
-Kirish ma'lumotlarini keyin ham ko'rish: `./deploy.sh creds`
+Admin va menejer `https://admin.rentix.uz` orqali kiradi. Mijozlar
+`https://user.rentix.uz` da telefon + SMS kod bilan ro'yxatdan o'tadi va
+(`RENTIX_SHOW_ALL_CUSTOMERS=True`) darhol menejerning "Mijozlar" bo'limida ko'rinadi.
 
 ## 5. Kundalik buyruqlar
 
@@ -263,28 +261,49 @@ curl -k --resolve user.rentix.uz:443:127.0.0.1 https://user.rentix.uz/
 
 Serverda bu o'zgaruvchi kerak emas — oddiy `./deploy.sh install` yetarli.
 
-## 11. GitHub Actions (avtomatik deploy)
+## 11. CI/CD (GitHub Actions)
 
-Uchala repoda ham `main` ga push bo'lganda CI Docker image yig'adi va serverga
-SSH orqali kirib `./deploy.sh update` ni ishga tushiradi.
+Hozirgi produkshn: `204.168.199.61`, papka `/root/ismail/.myself/rentix`
+(monorepo klon + submodule'lar). Server umumiy — 80/443 ni host nginx egallagan,
+shuning uchun Caddy o'rniga `docker-compose.server.yml` ishlatiladi: frontendlar
+`127.0.0.1:8031` (user) va `127.0.0.1:8032` (admin) da, TLS ni certbot beradi
+(`./deploy.sh nginx`).
 
-GitHub'da har bir repo uchun quyidagi secret'lar sozlanishi kerak
-(Settings → Secrets and variables → Actions):
+```
+app repo (backend/user/admin) push main
+   └─► o'z CI'si: image build + serverda ci-bump.sh  ──► monorepoga "Bump ..." commit
+monorepo push main ───────────────────────────────────────────────┘
+   └─► .github/workflows/deploy.yml
+         check  : deploy.sh sintaksisi, compose config
+         deploy : serverda aynan shu commit + submodule'lar -> deploy.sh update -> deploy.sh nginx
+         smoke  : user/admin domenlari va API javob beradimi
+```
+
+**Monorepo** (`ismoillmirabbosoff/rentix`) secret'lari:
 
 | Secret | Qiymati |
 |---|---|
-| `SERVER_HOST` | serverning IP manzili |
-| `SERVER_USERNAME` | SSH foydalanuvchisi (masalan `root`) |
-| `SSH_PRIVATE_KEY` | serverga kirish uchun maxfiy kalit |
-| `TOKEN` | ghcr.io ga push uchun GitHub token |
-| `TELEGRAM_CHATID`, `TELEGRAM_TOKEN` | bildirishnomalar uchun (ixtiyoriy) |
+| `SSH_HOST` | `204.168.199.61` |
+| `SSH_USER` | `root` |
+| `SSH_PRIVATE_KEY` | serverning `authorized_keys` idagi CI kalitining maxfiy qismi |
 
-CI skript serverda `/root/rentix/rentix-deploy` yo'lini kutadi. Boshqa joyga
-o'rnatsangiz, uchala repodagi `.github/workflows/main.yml` dagi `cd` qatorini
-o'zgartiring.
+**App repolari** (`rentix-organization/*`) da mavjud secret'lar ishlatiladi:
+`SERVER_HOST`, `SERVER_USERNAME`, `SSH_PRIVATE_KEY`, `TOKEN` (ghcr).
 
-> Server GitHub'dan `git pull` qila olishi uchun serverning SSH kaliti uchala
-> repoga ham deploy key sifatida qo'shilgan bo'lishi kerak.
+`deploy.sh update` har safar `bootstrap_prod` ni ham chaqiradi — u idempotent,
+mavjud admin/menejer va ularning parollariga tegmaydi.
+
+## 11.1 E2E testlar (Playwright)
+
+```bash
+cd rentix-deploy/e2e
+./run-local.sh                      # lokal stack (SMS_MODE=dev) + to'liq test
+./run-local.sh down                 # lokal stackni o'chirish
+USER_URL=https://user.rentix.uz ADMIN_URL=https://admin.rentix.uz \
+  RENTIX_ADMIN_LOGIN=... RENTIX_ADMIN_PASSWORD=... \
+  RENTIX_MANAGER_LOGIN=... RENTIX_MANAGER_PASSWORD=... \
+  npx playwright test --project=prod-smoke   # prodda faqat o'qish testlari
+```
 
 ## 12. Xavfsizlik eslatmalari
 
