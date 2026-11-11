@@ -152,7 +152,7 @@ sync_repos() {
     fi
     if [ -f "../.gitmodules" ]; then
       info "submodule lar yangilanmoqda"
-      git -C .. submodule update --init --recursive --quiet \
+      git -C .. submodule update --init --quiet \
         && ok "submodule lar tayyor" \
         || warn "submodule update bajarilmadi"
     fi

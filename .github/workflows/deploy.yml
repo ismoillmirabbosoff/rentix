@@ -57,8 +57,8 @@ jobs:
           cd "$DEPLOY_PATH"
           git fetch --quiet origin
           git checkout --quiet --force "$SHA"
-          git submodule sync --quiet --recursive
-          git submodule update --init --recursive --force
+          git submodule sync --quiet
+          git submodule update --init --force
           echo "Deploying $(git log -1 --format='%h %s')"
           cd rentix-deploy
           SKIP_SYNC=1 ./deploy.sh update
