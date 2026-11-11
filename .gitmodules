@@ -1,0 +1,12 @@
+[submodule "rentix-backend"]
+	path = rentix-backend
+	url = git@github.com:rentix-organization/rentix-backend.git
+	branch = main
+[submodule "rentix-user"]
+	path = rentix-user
+	url = git@github.com:rentix-organization/rentix-user.git
+	branch = main
+[submodule "rentix-admin"]
+	path = rentix-admin
+	url = git@github.com:rentix-organization/rentix-admin.git
+	branch = main
