@@ -2,8 +2,9 @@
 # =============================================================================
 # Rentix deployment skripti
 #
-#   ./deploy.sh install    — birinchi marta: repolarni klonlash, .env, build, up
-#   ./deploy.sh update     — kodni yangilash va qayta build qilish
+#   ./deploy.sh install    — birinchi marta: .env, build, up, admin + menejer
+#   ./deploy.sh update     — kodni yangilash va qayta build qilish (CI shuni chaqiradi)
+#   ./deploy.sh nginx      — host nginx saytlari + certbot (umumiy server rejimi)
 #   ./deploy.sh seed       — demo ma'lumot yuklash (BAZANI TOZALAYDI!)
 #   ./deploy.sh superuser  — Django admin uchun superuser yaratish
 #   ./deploy.sh status     — konteynerlar holati va sog'lig'i
@@ -32,8 +33,9 @@ usage() {
   cat <<'USAGE'
 Rentix deployment skripti
 
-  ./deploy.sh install    — birinchi marta: repolarni tekshirish, .env, build, up
-  ./deploy.sh update     — kodni yangilash va qayta build qilish
+  ./deploy.sh install    — birinchi marta: .env, build, up, admin + menejer
+  ./deploy.sh update     — kodni yangilash va qayta build qilish (CI shuni chaqiradi)
+  ./deploy.sh nginx      — host nginx saytlari + certbot (umumiy server rejimi)
   ./deploy.sh seed       — demo ma'lumot yuklash (BAZANI TOZALAYDI!)
   ./deploy.sh superuser  — Django admin uchun superuser yaratish
   ./deploy.sh status     — konteynerlar holati va sog'lig'i
@@ -83,7 +85,8 @@ env_get() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- ; }
 check_env() {
   [ -f .env ] || die ".env fayli yo'q. Avval: ./deploy.sh install"
   local missing=()
-  for k in SECRET_KEY POSTGRES_PASSWORD USER_DOMAIN ADMIN_DOMAIN API_DOMAIN; do
+  for k in SECRET_KEY POSTGRES_PASSWORD USER_DOMAIN ADMIN_DOMAIN \
+           RENTIX_ADMIN_LOGIN RENTIX_ADMIN_PASSWORD RENTIX_MANAGER_LOGIN RENTIX_MANAGER_PASSWORD; do
     [ -n "$(env_get "$k")" ] || missing+=("$k")
   done
   [ ${#missing[@]} -eq 0 ] || die ".env da quyidagilar bo'sh: ${missing[*]}"
@@ -129,6 +132,13 @@ preflight_sources() {
 
 sync_repos() {
   head_ "1/4  Manba kodi"
+
+  if [ "${SKIP_SYNC:-0}" = "1" ]; then
+    info "SKIP_SYNC=1 — kod allaqachon tayyorlangan (CI)"
+    preflight_sources
+    ok "uchala manba papkasi joyida"
+    return 0
+  fi
 
   # Ota-papka git repo bo'lsa — monorepo (yoki submodule konteyner)
   if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
@@ -188,29 +198,32 @@ show_credentials() {
   U="$(env_get USER_DOMAIN)"; A="$(env_get ADMIN_DOMAIN)"
   cat <<EOF
 
-$(printf "${BLD}%s${OFF}" "KIRISH MA'LUMOTLARI")
-$(printf "${BLD}%s${OFF}" "$(printf '─%.0s' $(seq 1 60))")
+${BLD}KIRISH MA'LUMOTLARI${OFF}
+${BLD}$(printf '─%.0s' $(seq 1 60))${OFF}
 
   ${BLD}Admin panel${OFF}   https://${A}
-    login     rentix_admin
-    parol     Rentix2024!
+    login     $(env_get RENTIX_ADMIN_LOGIN)
+    parol     $(env_get RENTIX_ADMIN_PASSWORD)
 
   ${BLD}Menejer${OFF}       https://${A}
-    login     rentix_manager
-    parol     Manager2024!
+    login     $(env_get RENTIX_MANAGER_LOGIN)
+    parol     $(env_get RENTIX_MANAGER_PASSWORD)
 
   ${BLD}Mijoz ilovasi${OFF} https://${U}
-    Telefon raqami + SMS kod orqali kiriladi.
-    SMS_MODE=dev bo'lgani uchun kod har doim: ${BLD}1111${OFF}
-    (kod API javobida ham qaytadi — SMSFly kaliti olingach SMS_MODE=stage qiling)
+    Telefon raqami + SMS kod orqali (SMS_MODE=$(env_get SMS_MODE)).
 
-  ${BLD}Django admin${OFF}  https://$(env_get API_DOMAIN)/admin/
-    ./deploy.sh superuser  buyrug'i bilan yarating
-
-$(printf "${YLW}%s${OFF}" "  ! Parollarni birinchi kirishdan keyin almashtiring.")
+  Parollar faqat shu serverdagi .env da saqlanadi.
+  Almashtirish: .env ni tahrirlang va  ./deploy.sh reset-passwords
 
 EOF
 }
+
+# Admin + menejer + ma'lumotnomalar. Idempotent — har deployda xavfsiz.
+bootstrap() {
+  dc exec -T backend python manage.py bootstrap_prod "$@" 2>&1 | grep -v "httpx" | sed 's/^/    /'
+}
+
+server_ip() { curl -s -4 -m 8 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}'; }
 
 # ───────────────────────────────────────────────────────────────── buyruqlar
 
@@ -227,6 +240,8 @@ cmd_install() {
 
   fill_env SECRET_KEY "$(gen_secret)"
   fill_env POSTGRES_PASSWORD "$(gen_secret | cut -c1-32)"
+  fill_env RENTIX_ADMIN_PASSWORD "$(gen_secret | cut -c1-16)"
+  fill_env RENTIX_MANAGER_PASSWORD "$(gen_secret | cut -c1-16)"
   check_env
 
   sync_repos
@@ -241,27 +256,20 @@ cmd_install() {
   wait_healthy rentix-redis 20
   wait_healthy rentix-backend 90
 
-  head_ "4/4  Boshlang'ich ma'lumot"
-  if dc exec -T backend python manage.py shell -c \
-      "from user.models import Company; import sys; sys.exit(0 if Company.objects.exists() else 1)" >/dev/null 2>&1; then
-    info "Bazada allaqachon ma'lumot bor — seed o'tkazib yuborildi"
-  else
-    info "Demo ma'lumot yuklanmoqda (kompaniya, filiallar, mashinalar)"
-    dc exec -T backend python manage.py seed_demo 2>&1 | tail -20
-  fi
+  head_ "4/4  Admin + menejer (demo ma'lumotsiz)"
+  bootstrap
 
   cmd_status
   show_credentials
 
-  cat <<EOF
-${BLD}Keyingi qadamlar${OFF}
-  1. DNS: ${BLD}$(env_get USER_DOMAIN)${OFF}, ${BLD}$(env_get ADMIN_DOMAIN)${OFF}, ${BLD}$(env_get API_DOMAIN)${OFF}
-     uchta A-record ham shu serverning IP manziliga qaratilgan bo'lsin.
-  2. Sertifikat 1–2 daqiqada avtomatik olinadi:  ./deploy.sh logs caddy
-  3. Django superuser:  ./deploy.sh superuser
-  4. Telegram bot tokenini admin panelning "Sozlamalar" bo'limidan kiriting.
+  if [ -n "$(env_get USER_PORT)" ]; then
+    cat <<EOF
+${BLD}Keyingi qadam${OFF}
+  DNS A-record: $(env_get USER_DOMAIN), $(env_get ADMIN_DOMAIN) -> shu server IP.
+  So'ng:  ./deploy.sh nginx   (host nginx sayti + Let's Encrypt sertifikat)
 
 EOF
+  fi
 }
 
 cmd_update() {
@@ -273,6 +281,8 @@ cmd_update() {
   head_ "Qayta ishga tushirish"
   dc up -d --remove-orphans
   wait_healthy rentix-backend 90
+  bootstrap
+  docker image prune -f >/dev/null 2>&1 || true
   cmd_status
   ok "Yangilandi"
 }
@@ -297,8 +307,14 @@ cmd_status() {
   head_ "Holat"
   dc ps --format "table {{.Name}}\t{{.Service}}\t{{.Status}}"
   echo
-  local U A P
+  local U A P port
   U="$(env_get USER_DOMAIN)"; A="$(env_get ADMIN_DOMAIN)"; P="$(env_get API_DOMAIN)"
+  for port in "$(env_get USER_PORT)" "$(env_get ADMIN_PORT)"; do
+    [ -n "$port" ] || continue
+    local lc
+    lc="$(curl -sS -o /dev/null -w '%{http_code}' -m 8 "http://127.0.0.1:$port/" 2>/dev/null || echo "---")"
+    [ "$lc" = "200" ] && ok "127.0.0.1:$port  →  HTTP $lc" || warn "127.0.0.1:$port  →  $lc"
+  done
   for d in "$U" "$A" "$P"; do
     [ -n "$d" ] || continue
     local code
@@ -308,6 +324,45 @@ cmd_status() {
     else
       warn "https://$d  →  $code  (DNS yoki sertifikat hali tayyor emas)"
     fi
+  done
+}
+
+# Umumiy server: host nginx'da sayt yaratadi va DNS tayyor bo'lsa sertifikat oladi.
+# Qayta ishga tushirish xavfsiz — cron orqali ham chaqiriladi (sertifikat yo'q bo'lsa).
+cmd_nginx() {
+  check_env
+  command -v nginx >/dev/null 2>&1 || die "host nginx topilmadi"
+  local ip changed=0 d port conf
+  ip="$(server_ip)"
+
+  if [ ! -f /etc/nginx/conf.d/rentix-ws-map.conf ]; then
+    cp nginx/rentix-ws-map.conf /etc/nginx/conf.d/rentix-ws-map.conf; changed=1
+  fi
+  for pair in "$(env_get USER_DOMAIN):$(env_get USER_PORT)" "$(env_get ADMIN_DOMAIN):$(env_get ADMIN_PORT)"; do
+    d="${pair%%:*}"; port="${pair##*:}"
+    [ -n "$d" ] && [ -n "$port" ] || die "USER_PORT/ADMIN_PORT .env da yo'q"
+    conf="/etc/nginx/conf.d/$d.conf"
+    if [ ! -f "$conf" ]; then
+      sed -e "s/__DOMAIN__/$d/g" -e "s/__PORT__/$port/g" nginx/site.conf.template > "$conf"
+      ok "nginx sayti yaratildi: $conf"; changed=1
+    fi
+  done
+  if [ "$changed" = 1 ]; then
+    nginx -t 2>&1 | tail -2 && systemctl reload nginx && ok "nginx qayta yuklandi"
+  fi
+
+  for d in "$(env_get USER_DOMAIN)" "$(env_get ADMIN_DOMAIN)"; do
+    if [ -d "/etc/letsencrypt/live/$d" ]; then
+      ok "$d — sertifikat bor"; continue
+    fi
+    local resolved
+    resolved="$(getent ahostsv4 "$d" 2>/dev/null | awk '{print $1; exit}')"
+    if [ "$resolved" != "$ip" ]; then
+      warn "$d DNS hali shu serverga ($ip) qaramayapti (hozir: ${resolved:-none}) — sertifikat keyinroq"
+      continue
+    fi
+    certbot --nginx -d "$d" --non-interactive --agree-tos -m "$(env_get ACME_EMAIL)" --redirect \
+      && ok "$d — sertifikat olindi" || warn "$d — certbot xato berdi"
   done
 }
 
@@ -334,6 +389,9 @@ case "${1:-}" in
   status)    cmd_status ;;
   logs)      cmd_logs "${2:-}" ;;
   restart)   cmd_restart ;;
+  nginx)     cmd_nginx ;;
+  bootstrap) check_env; bootstrap ;;
+  reset-passwords) check_env; dc up -d --force-recreate backend; wait_healthy rentix-backend 90; bootstrap --reset-passwords ;;
   backup)    cmd_backup ;;
   down)      cmd_down ;;
   creds)     check_env; show_credentials ;;

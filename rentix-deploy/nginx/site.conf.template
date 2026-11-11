@@ -1,0 +1,30 @@
+# Rentix — host nginx sayti. ./deploy.sh nginx tomonidan generatsiya qilinadi:
+#   __DOMAIN__ -> domen, __PORT__ -> konteyner porti (127.0.0.1)
+# TLS bloklarini certbot (--nginx) o'zi qo'shadi.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    client_max_body_size 20M;
+
+    location / {
+        proxy_pass http://127.0.0.1:__PORT__;
+        proxy_http_version 1.1;
+
+        # WebSocket (/ws/)
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade_rentix;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        # Mijozdan kelgan X-Forwarded-For e'tiborga olinmaydi (soxtalashtirish),
+        # backend NUM_PROXIES=2 bilan IP ni o'ngdan oladi.
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}

@@ -1,0 +1,92 @@
+name: Deploy
+
+# main ga push (yoki qo'lda ishga tushirish) -> serverda aynan shu commit
+# (submodule'lari bilan) yig'iladi va ishga tushiriladi.
+#
+# Kerakli secret'lar (Settings -> Secrets and variables -> Actions):
+#   SSH_HOST         server IP
+#   SSH_USER         root
+#   SSH_PRIVATE_KEY  serverning authorized_keys idagi "rentix-ci" kalitining maxfiy qismi
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_PATH: /root/ismail/.myself/rentix
+  USER_URL: https://user.rentix.uz
+  ADMIN_URL: https://admin.rentix.uz
+
+jobs:
+  check:
+    name: Check deploy config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n rentix-deploy/deploy.sh
+      - name: Compose config
+        working-directory: rentix-deploy
+        run: |
+          cp .env.example .env
+          sed -i 's/^SECRET_KEY=$/SECRET_KEY=ci/; s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=ci/' .env
+          docker compose config --quiet
+
+  deploy:
+    name: Deploy to server
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: SSH setup
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 20 -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Build & restart on server
+        run: |
+          ssh -o BatchMode=yes "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' SHA='${GITHUB_SHA}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          git fetch --quiet origin
+          git checkout --quiet --force "$SHA"
+          git submodule sync --quiet --recursive
+          git submodule update --init --recursive --force
+          echo "Deploying $(git log -1 --format='%h %s')"
+          cd rentix-deploy
+          SKIP_SYNC=1 ./deploy.sh update
+          ./deploy.sh nginx
+          REMOTE
+
+  smoke:
+    name: Smoke test
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Frontends and API respond
+        run: |
+          set -u
+          check() {
+            for i in $(seq 1 10); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$1" || true)
+              [ "$code" = "$2" ] && { echo "OK  $1 -> $code"; return 0; }
+              sleep 6
+            done
+            echo "FAIL $1 -> $code (kutilgan $2)"; return 1
+          }
+          # DNS/TLS hali tayyor bo'lmasa faqat ogohlantiradi
+          if ! curl -s -o /dev/null -m 10 "$USER_URL/"; then
+            echo "::warning::$USER_URL hali ochilmayapti (DNS/sertifikat). Smoke o'tkazib yuborildi."
+            exit 0
+          fi
+          check "$USER_URL/" 200
+          check "$ADMIN_URL/" 200
+          check "$USER_URL/api/user/cars/" 200
+          check "$ADMIN_URL/api/user/all-users/" 401

@@ -1,0 +1,23 @@
+# =============================================================================
+# Umumiy (shared) server uchun override — 80/443 ni host nginx egallagan.
+#
+#   Internet :80/:443 ─► host nginx (certbot TLS) ─┬─► 127.0.0.1:${USER_PORT}  rentix-user
+#                                                 └─► 127.0.0.1:${ADMIN_PORT} rentix-admin
+#
+# Caddy ishga tushirilmaydi (profil orqali o'chirilgan). Frontend konteynerlar
+# faqat localhost'da ochiladi — tashqaridan to'g'ridan-to'g'ri kirib bo'lmaydi.
+# Host nginx konfiglari: nginx/*.conf.template  (./deploy.sh nginx)
+#
+# Yoqish: .env da  COMPOSE_FILE=docker-compose.yml:docker-compose.server.yml
+# =============================================================================
+services:
+  caddy:
+    profiles: ["caddy"]
+
+  user-app:
+    ports:
+      - "127.0.0.1:${USER_PORT:-8031}:80"
+
+  admin-app:
+    ports:
+      - "127.0.0.1:${ADMIN_PORT:-8032}:80"
