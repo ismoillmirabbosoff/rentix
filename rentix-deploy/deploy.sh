@@ -356,7 +356,11 @@ cmd_nginx() {
       ok "$d — sertifikat bor"; continue
     fi
     local resolved
-    resolved="$(getent ahostsv4 "$d" 2>/dev/null | awk '{print $1; exit}')"
+    # Server resolveri keshlangan eski javob berishi mumkin -> ommaviy resolver ham tekshiriladi
+    resolved="$(getent ahostsv4 "$d" 2>/dev/null | awk '{print $1; exit}')" || true
+    if [ "$resolved" != "$ip" ] && command -v dig >/dev/null 2>&1; then
+      resolved="$(dig +short +time=5 A "$d" @1.1.1.1 2>/dev/null | tail -1)" || true
+    fi
     if [ "$resolved" != "$ip" ]; then
       warn "$d DNS hali shu serverga ($ip) qaramayapti (hozir: ${resolved:-none}) — sertifikat keyinroq"
       continue
