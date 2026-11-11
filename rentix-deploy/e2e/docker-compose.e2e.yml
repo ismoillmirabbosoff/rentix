@@ -1,0 +1,31 @@
+# E2E (Playwright) uchun lokal stack. Produkshnda ISHLATILMAYDI.
+#
+#   cd rentix-deploy/e2e && ./run-local.sh
+#
+# Farqlari: SMS yuborilmaydi (SMS_MODE=dev, kod 1111), HTTP (TLS yo'q),
+# frontendlar 127.0.0.1:18031 (user) va 127.0.0.1:18032 (admin) da.
+name: rentix-e2e
+
+services:
+  caddy:
+    profiles: ["caddy"]
+
+  backend:
+    environment: &e2e-env
+      SMS_MODE: dev
+      SMS_DEV_CODE: "1111"
+      SECURE_SSL: "False"
+      DEBUG: "False"
+      ALLOWED_HOSTS: "127.0.0.1,localhost,rentix-backend"
+      CSRF_TRUSTED_ORIGINS: "http://127.0.0.1:18031,http://127.0.0.1:18032"
+      CORS_ALLOWED_ORIGINS: "http://127.0.0.1:18031,http://127.0.0.1:18032"
+      RENTIX_SHOW_ALL_CUSTOMERS: "True"
+  worker:
+    environment: *e2e-env
+  beat:
+    environment: *e2e-env
+
+  user-app:
+    ports: ["127.0.0.1:18031:80"]
+  admin-app:
+    ports: ["127.0.0.1:18032:80"]

@@ -1,0 +1,13 @@
+{
+  "name": "rentix-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:local": "./run-local.sh",
+    "test:prod": "playwright test --project=prod-smoke",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
+  }
+}
