@@ -43,7 +43,7 @@ test.describe("admin cars", () => {
     await page.goto("/admin/settings");
     await page.getByText("Cars", { exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/cars$/);
-    await expect(page.getByRole("heading", { name: "Mashinalar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mashinalar" }).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Mashina qo'shish" }).click();
     await expect(page).toHaveURL(/\/admin\/cars\/create$/);

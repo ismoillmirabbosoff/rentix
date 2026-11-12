@@ -15,8 +15,8 @@ test("customer registers and books → manager sees customer + order → confirm
   const name = `Kross Mijoz ${uniqueSuffix()}`;
 
   /* ── customer (guest) searches and books; login happens at checkout ── */
-  const days = expectedDays(4, 1);
-  await searchCars(page, 4, 1);
+  const days = expectedDays(4, 2); // >=24h: 1 kunlik tanlov kechki soatlarda soatlik narxga tushadi
+  await searchCars(page, 4, 2);
   await page.locator("article").filter({ hasText: moneyRe(price) }).click();
   await page.getByRole("button", { name: "Buyurtmani rasmiylashtirish" }).click();
   await page.getByRole("button", { name: "Naqd" }).click();

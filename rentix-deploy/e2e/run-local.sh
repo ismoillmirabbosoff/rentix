@@ -33,7 +33,7 @@ for _ in $(seq 1 60); do
   [ "$(docker inspect -f '{{.State.Health.Status}}' rentix-backend 2>/dev/null)" = healthy ] && break
   sleep 3
 done
-dc exec -T backend python manage.py bootstrap_prod | grep -v httpx
+dc exec -T backend python manage.py shell < bootstrap.py | grep -v httpx
 dc exec -T redis redis-cli FLUSHALL >/dev/null   # throttle hisoblagichlari
 
 [ "${1:-all}" = up ] && exit 0

@@ -24,6 +24,8 @@ const createNotificationViaUI = async (page: Page, customerName: string, title: 
 test.describe("manager notifications CRUD", () => {
   test("create a notification for a customer", async ({ page }) => {
     const customer = await registerCustomerApi();
+    // Menejer faqat buyurtmasi bor mijozlarni ko'radi (asl logika)
+    await createOrderAsCustomer(customer, (await createCarApi()).id);
     const title = `E2E xabar ${uniqueSuffix()}`;
     await createNotificationViaUI(page, customer.fullName, title, "Salom! Bu test xabari.");
 

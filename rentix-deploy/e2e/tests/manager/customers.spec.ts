@@ -34,9 +34,8 @@ test.describe("manager customers", () => {
   test("search by name and by phone", async ({ page }) => {
     const a = await registerCustomerApi();
     const b = await registerCustomerApi();
-    const car = await createCarApi();
-    await createOrderAsCustomer(a, car.id);
-    await createOrderAsCustomer(b, car.id);
+    await createOrderAsCustomer(a, (await createCarApi()).id);
+    await createOrderAsCustomer(b, (await createCarApi()).id);
     await page.goto("/manager/customers");
     const search = page.getByPlaceholder("Search by name or phone number");
     await search.fill(a.fullName);
@@ -71,6 +70,7 @@ test.describe("manager customers", () => {
 
   test("block and unblock a customer (blacklist)", async ({ page }) => {
     const customer = await registerCustomerApi();
+    await createOrderAsCustomer(customer, (await createCarApi()).id);
     await page.goto(`/manager/customers/${customer.id}`);
     await expect(page.getByText(customer.fullName).first()).toBeVisible();
 
