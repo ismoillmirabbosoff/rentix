@@ -220,7 +220,9 @@ EOF
 
 # Admin + menejer + ma'lumotnomalar. Idempotent — har deployda xavfsiz.
 bootstrap() {
-  dc exec -T backend python manage.py bootstrap_prod "$@" 2>&1 | grep -v "httpx" | sed 's/^/    /'
+  # Backend kodi o'zgartirilmaydi — skript manage.py shell orqali ishlaydi
+  dc exec -T -e RENTIX_RESET_PASSWORDS="${RESET:-0}" backend python manage.py shell < bootstrap.py 2>&1 \
+    | grep -v "httpx" | sed 's/^/    /'
 }
 
 server_ip() { curl -s -4 -m 8 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}'; }
@@ -395,7 +397,7 @@ case "${1:-}" in
   restart)   cmd_restart ;;
   nginx)     cmd_nginx ;;
   bootstrap) check_env; bootstrap ;;
-  reset-passwords) check_env; dc up -d --force-recreate backend; wait_healthy rentix-backend 90; bootstrap --reset-passwords ;;
+  reset-passwords) check_env; dc up -d --force-recreate backend; wait_healthy rentix-backend 90; RESET=1 bootstrap ;;
   backup)    cmd_backup ;;
   down)      cmd_down ;;
   creds)     check_env; show_credentials ;;

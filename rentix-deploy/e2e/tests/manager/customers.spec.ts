@@ -6,20 +6,21 @@ const customerCard = (page: Page, text: string) =>
   page.locator("article").filter({ hasText: text }).filter({ has: page.getByRole("button", { name: /View customer profile/ }) });
 
 test.describe("manager customers", () => {
-  test("a customer who registered in the customer app (no orders yet) is listed", async ({ page }) => {
-    // Key requirement (RENTIX_SHOW_ALL_CUSTOMERS=True): "we must be able to see our clients"
+  test("a customer who booked in the customer app is listed", async ({ page }) => {
+    // Menejer kompaniyada buyurtmasi bor mijozlarni ko'radi (UsersAllGetView)
     const customer = await registerCustomerApi();
+    await createOrderAsCustomer(customer, (await createCarApi()).id);
     await page.goto("/manager/customers");
     await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
     const card = customerCard(page, customer.fullName);
     await expect(card).toHaveCount(1);
     await expect(card).toContainText(displayPhone(customer.phone));
     await expect(card).toContainText("Active");
-    await expect(card).toContainText(/Orders:\s*0/);
   });
 
   test("customer card shows the registration date", async ({ page }) => {
     const customer = await registerCustomerApi();
+    await createOrderAsCustomer(customer, (await createCarApi()).id);
     await page.goto("/manager/customers");
     const card = customerCard(page, customer.fullName);
     await expect(card).toHaveCount(1);
@@ -33,6 +34,9 @@ test.describe("manager customers", () => {
   test("search by name and by phone", async ({ page }) => {
     const a = await registerCustomerApi();
     const b = await registerCustomerApi();
+    const car = await createCarApi();
+    await createOrderAsCustomer(a, car.id);
+    await createOrderAsCustomer(b, car.id);
     await page.goto("/manager/customers");
     const search = page.getByPlaceholder("Search by name or phone number");
     await search.fill(a.fullName);

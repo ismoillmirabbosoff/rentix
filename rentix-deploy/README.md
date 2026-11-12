@@ -127,9 +127,8 @@ Parollar avtomatik generatsiya qilinib, faqat serverdagi `.env` da saqlanadi:
 ./deploy.sh reset-passwords    # qo'llash
 ```
 
-Admin va menejer `https://admin.rentix.uz` orqali kiradi. Mijozlar
-`https://user.rentix.uz` da telefon + SMS kod bilan ro'yxatdan o'tadi va
-(`RENTIX_SHOW_ALL_CUSTOMERS=True`) darhol menejerning "Mijozlar" bo'limida ko'rinadi.
+Admin va menejer `https://admin.rentix.uz` orqali kiradi. Mijoz kompaniyada
+buyurtma bergach menejerning "Mijozlar" bo'limida ko'rinadi.
 
 ## 5. Kundalik buyruqlar
 
@@ -290,7 +289,7 @@ monorepo push main ────────────────────�
 **App repolari** (`rentix-organization/*`) da mavjud secret'lar ishlatiladi:
 `SERVER_HOST`, `SERVER_USERNAME`, `SSH_PRIVATE_KEY`, `TOKEN` (ghcr).
 
-`deploy.sh update` har safar `bootstrap_prod` ni ham chaqiradi — u idempotent,
+`deploy.sh update` har safar `bootstrap.py` ni ham ishga tushiradi (`manage.py shell` orqali, backend kodi o'zgarmaydi) — u idempotent,
 mavjud admin/menejer va ularning parollariga tegmaydi.
 
 ## 11.1 E2E testlar (Playwright)
