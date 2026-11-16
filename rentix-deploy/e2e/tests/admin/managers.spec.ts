@@ -4,7 +4,7 @@ import { Api, flushThrottle, rand, uniqueSuffix } from "../support/api";
 import { API_URL } from "../support/env";
 
 const managerCard = (page: Page, login: string) =>
-  page.locator('[class*="_paper_"]').filter({ hasText: login }).filter({ has: page.getByRole("button", { name: /Tahrirlash/ }) });
+  page.locator('[class*="_paper_"]').filter({ hasText: login }).filter({ has: page.getByRole("button", { name: /Edit/ }) });
 
 /**
  * NOTE (layout bug): the list has too little bottom padding, so at maximum
@@ -29,18 +29,18 @@ const tryLogin = async (login: string, password: string) => {
 
 const createManagerViaUI = async (page: Page, opts: { login: string; password: string; fullName: string }) => {
   await page.goto("/admin/managers");
-  await expect(page.getByRole("heading", { name: "Manajerlar" })).toBeVisible();
-  await page.getByRole("button", { name: "add circle icon" }).click();
+  await expect(page.getByRole("heading", { name: "Managers" })).toBeVisible();
+  await page.getByRole("button", { name: "Add manager" }).click();
   await expect(page).toHaveURL(/\/admin\/managers\/create$/);
-  await page.getByPlaceholder("Ism familiyani kiriting").fill(opts.fullName);
-  await page.locator(".ant-select").filter({ hasText: "Filialni tanlang" }).click();
+  await page.getByPlaceholder("Enter full name").fill(opts.fullName);
+  await page.locator(".ant-select").filter({ hasText: "Select a branch" }).click();
   await page.locator(".ant-select-dropdown:visible .ant-select-item-option", { hasText: "Default filial" }).click();
   await page.getByPlaceholder("+998901234567").first().fill(`+99891${rand(7)}`);
-  await page.getByPlaceholder("Login kiriting").fill(opts.login);
-  await page.getByPlaceholder("Parolni kiriting").fill(opts.password);
-  await page.getByPlaceholder("Masalan: 24/7 yoki 09:00-18:00").fill("09:00-18:00");
+  await page.getByPlaceholder("Enter login").fill(opts.login);
+  await page.getByPlaceholder("Enter password").fill(opts.password);
+  await page.getByPlaceholder("E.g.: 09:00-18:00 or 24/7").fill("09:00-18:00");
   const post = page.waitForResponse((r) => r.url().includes("/user/create-manager/"));
-  await page.getByRole("button", { name: "Yuborish" }).click();
+  await page.getByRole("button", { name: "Submit" }).click();
   expect((await post).status()).toBeLessThan(300);
   // on success the app navigates straight back to the list
   await expect(page).toHaveURL(/\/admin\/managers$/);
@@ -56,33 +56,38 @@ test.describe("admin managers", () => {
     const card = managerCard(page, login);
     await expect(card).toHaveCount(1);
     await expect(card).toContainText("E2E Menejer");
-    await expect(card).toContainText("Aktiv");
+    await expect(card).toContainText("Active");
     expect(await tryLogin(login, password)).toBe(200);
   });
 
   test("create form validation", async ({ page }) => {
     await page.goto("/admin/managers/create");
-    await page.getByRole("button", { name: "Yuborish" }).click();
-    await expect(page.getByText("Ism familiyani kiriting").last()).toBeVisible();
-    await expect(page.getByText("Loginni kiriting")).toBeVisible();
-    await expect(page.getByText("Filialni tanlang").last()).toBeVisible();
+    await page.getByRole("button", { name: "Submit" }).click();
+    await expect(page.locator(".ant-form-item-explain-error, [class*=error]").filter({ hasText: "Enter full name" }).first()).toBeVisible();
+    await expect(page.locator(".ant-form-item-explain-error, [class*=error]").filter({ hasText: "Enter login" }).first()).toBeVisible();
+    await expect(page.locator(".ant-form-item-explain-error, [class*=error]").filter({ hasText: "Select a branch" }).first()).toBeVisible();
+    await expect(page.getByText("Enter working hours")).toBeVisible();
     await page.getByPlaceholder("+998901234567").first().fill("12345");
     await page.getByPlaceholder("+998901234567").first().blur();
-    await expect(page.getByText("Telefon raqam noto'g'ri")).toBeVisible();
+    await expect(page.getByText("Invalid phone number")).toBeVisible();
+    // R-27: working hours are validated
+    await page.getByPlaceholder("E.g.: 09:00-18:00 or 24/7").fill("ertalab");
+    await page.getByPlaceholder("E.g.: 09:00-18:00 or 24/7").blur();
+    await expect(page.getByText("Working hours format: 09:00-18:00 or 24/7")).toBeVisible();
   });
 
   test("edit a manager's name", async ({ page }) => {
     const login = `e2e_mgr_${uniqueSuffix()}`;
     await createManagerViaUI(page, { login, password: `Pw-${rand(8)}`, fullName: "Eski Ism" });
     await page.goto("/admin/managers");
-    await tapCardButton(page, login, /Tahrirlash/);
+    await tapCardButton(page, login, /Edit/);
     await expect(page).toHaveURL(/\/admin\/managers\/\d+$/);
-    const name = page.getByPlaceholder("Ism familiyani kiriting");
+    const name = page.getByPlaceholder("Enter full name");
     await expect(name).toHaveValue("Eski Ism");
     await name.fill("Yangi Ism");
-    await page.getByRole("button", { name: "Yuborish" }).click();
-    await expect(page.getByText("Manager ma'lumotlari o'zgartirildi.")).toBeVisible();
-    await page.getByRole("button", { name: "Oynani yopish" }).click();
+    await page.getByRole("button", { name: "Submit" }).click();
+    await expect(page.getByText("Manager details updated.")).toBeVisible();
+    await page.locator("button.ant-btn").filter({ hasText: /^Close$/ }).click();
     await expect(page).toHaveURL(/\/admin\/managers$/);
     await expect(managerCard(page, login)).toContainText("Yangi Ism");
   });
@@ -96,7 +101,7 @@ test.describe("admin managers", () => {
     const patch = page.waitForResponse((r) => r.url().includes("/user/manager-crud/") && r.request().method() === "PATCH");
     await card.getByRole("switch").click();
     expect((await patch).status()).toBeLessThan(300);
-    await expect(card).toContainText("Aktiv emas");
+    await expect(card).toContainText("Inactive");
     await expect(card.getByRole("switch")).not.toBeChecked();
 
     const api = await Api.staff("admin");
@@ -112,11 +117,11 @@ test.describe("admin managers", () => {
     const login = `e2e_mgr_${uniqueSuffix()}`;
     await createManagerViaUI(page, { login, password: `Pw-${rand(8)}`, fullName: "O'chiriladigan" });
     await page.goto("/admin/managers");
-    await tapCardButton(page, login, /O.chirish/);
-    await expect(page.getByText("Managerni o'chirish")).toBeVisible();
-    await page.getByRole("button", { name: "Ha, o'chiraman" }).click();
-    await expect(page.getByRole("heading", { name: "Muvaffaqiyatli o'chirildi." })).toBeVisible();
-    await page.getByRole("button", { name: "Oynani yopish" }).click();
+    await tapCardButton(page, login, /Delete/);
+    await expect(page.getByRole("heading", { name: "Delete manager" })).toBeVisible();
+    await page.getByRole("button", { name: "Yes, delete" }).click();
+    await expect(page.getByRole("heading", { name: "Deleted successfully." })).toBeVisible();
+    await page.locator("button.ant-btn").filter({ hasText: /^Close$/ }).click();
     await expect(managerCard(page, login)).toHaveCount(0);
   });
 });

@@ -24,11 +24,11 @@ test.describe("manager customers", () => {
     await page.goto("/manager/customers");
     const card = customerCard(page, customer.fullName);
     await expect(card).toHaveCount(1);
-    // BUG: "Joined" is always "—": /user/all-users/ returns no registration
-    // timestamp, so the card can never show when the client joined.
-    // rentix-backend/user/views.py (UsersAllGetView) / rentix-admin ManagerCustomers.tsx (registeredAt)
-    test.fail();
-    await expect(card).not.toContainText(/Joined:\s*—/, { timeout: 3_000 });
+    // "Joined" used to be always "—"; it now shows the registration time ("HH:mm; DD.MM.YYYY").
+    await expect(card).not.toContainText(/Joined:\s*—/);
+    const d = new Date();
+    const today = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+    await expect(card).toContainText(new RegExp(`Joined:\\s*\\d{2}:\\d{2}; ${today.replace(/\./g, "\\.")}`));
   });
 
   test("search by name and by phone", async ({ page }) => {

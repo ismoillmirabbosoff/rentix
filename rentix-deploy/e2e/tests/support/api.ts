@@ -71,6 +71,27 @@ export const deleteFilialLocal = (id: number) => {
 };
 
 /** 1x1 PNG used for every upload. */
+/**
+ * A manual (non-system) notification for a customer, like the ones the manager
+ * "create notification" form is meant to produce. That form cannot create
+ * anything yet (NotificationViewSet.perform_create refuses staff — see
+ * manager/notifications.spec.ts), so it is inserted straight into the DB.
+ * Local stack only. Returns the notification id.
+ */
+export const createManualNotificationLocal = (userId: number, title: string, companyId = 1): number => {
+  if (!IS_LOCAL) throw new Error("createManualNotificationLocal needs the local docker stack");
+  const py =
+    "from user.models import Notification; " +
+    `n = Notification.objects.create(user_id=${Number(userId)}, company_id=${Number(companyId)}, ` +
+    `title=${JSON.stringify(title)}, message='E2E manual xabar'); print(n.id)`;
+  const out = execSync(`docker exec rentix-backend python manage.py shell -c ${JSON.stringify(py)}`, {
+    encoding: "utf8",
+  });
+  const id = Number(out.trim().split(/\s+/).pop());
+  if (!Number.isInteger(id)) throw new Error(`unexpected shell output: ${out}`);
+  return id;
+};
+
 export const PNG_1PX = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
   "base64",

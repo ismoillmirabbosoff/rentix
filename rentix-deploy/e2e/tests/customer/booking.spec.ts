@@ -9,7 +9,7 @@ const resultCard = (page: Page, price: number) =>
 test.describe("customer: browse and filter cars", () => {
   test("search form validation", async ({ page }) => {
     await page.goto("/?company=1");
-    await page.getByRole("button", { name: "Natijalarni ko’rish" }).click();
+    await page.getByRole("button", { name: "Natijalarni ko'rish" }).click();
     await expect(page.getByText("Boshlanish vaqtini tanlang")).toBeVisible();
     await expect(page.locator(".ant-form-item-has-error").first()).toBeVisible();
     await expect(page).toHaveURL(/\/(\?company=1)?$/);
@@ -101,11 +101,8 @@ test.describe("customer: browse and filter cars", () => {
     await expect(page.getByText(moneyRe(price)).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Buyurtmani rasmiylashtirish" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Qo'shimcha izoh" })).toBeVisible();
-    // BUG: the "Qo'shimcha izoh" (additional note) section always shows a
-    // hard-coded paragraph instead of the car's own comment (car.commit).
-    // rentix-user/src/pages/CarDetail/ui/CarDetail.tsx (~line 404)
-    test.fail();
-    await expect(page.getByText("E2E izoh: Toshkent bo'ylab")).toBeVisible({ timeout: 3_000 });
+    // The "Qo'shimcha izoh" section shows the car's own comment (car.commit), not placeholder text.
+    await expect(page.getByText("E2E izoh: Toshkent bo'ylab")).toBeVisible();
   });
 });
 

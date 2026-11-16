@@ -67,10 +67,10 @@ test.describe("prod smoke (read-only)", () => {
     const errors = watchServerErrors(page);
     await staffLogin(page, "admin");
     await expect(page).toHaveURL(/\/admin\/statistics$/);
-    await expect(page.getByText("Buyurtmalar jami")).toBeVisible(); // loads /user/orders/
+    await expect(page.getByText("Total orders")).toBeVisible(); // loads /user/orders/
     await page.getByRole("link", { name: /Managers/ }).click();
     await expect(page).toHaveURL(/\/admin\/managers$/);
-    await expect(page.getByRole("heading", { name: "Manajerlar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Managers" })).toBeVisible();
     await page.getByRole("link", { name: /Settings/ }).click();
     await expect(page.getByText("Company information")).toBeVisible();
     expect(errors).toEqual([]);

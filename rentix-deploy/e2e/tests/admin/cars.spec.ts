@@ -43,7 +43,7 @@ test.describe("admin cars", () => {
     await page.goto("/admin/settings");
     await page.getByText("Cars", { exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/cars$/);
-    await expect(page.getByRole("heading", { name: "Mashinalar" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cars" }).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Mashina qo'shish" }).click();
     await expect(page).toHaveURL(/\/admin\/cars\/create$/);
@@ -53,11 +53,12 @@ test.describe("admin cars", () => {
     await expect(page.getByRole("img", { name: "front.png" })).toBeVisible();
 
     // Brand / model pickers
-    await page.getByRole("button", { name: /Avtomobil rusumi/ }).click();
-    await pickFromDrawer(page, "Mashina rusumi", "Chevrolet");
+    // R-56: brand = "marka", model = "model" (was "rusum" / "marka")
     await page.getByRole("button", { name: /Avtomobil markasi/ }).click();
-    await pickFromDrawer(page, "Mashinalar", "Malibu");
-    await expect(page.getByRole("button", { name: /Avtomobil markasi.*Malibu/ })).toBeVisible();
+    await pickFromDrawer(page, "Avtomobil markasi", "Chevrolet");
+    await page.getByRole("button", { name: /Avtomobil modeli/ }).click();
+    await pickFromDrawer(page, "Avtomobil modeli", "Malibu");
+    await expect(page.getByRole("button", { name: /Avtomobil modeli.*Malibu/ })).toBeVisible();
 
     await chooseSelect(page, "Avtomobil rangi", "Black");
     await chooseSelect(page, "Yoqilg'i turi", "Benzin");
@@ -135,7 +136,9 @@ test.describe("admin cars", () => {
     await expect(carCard(page, a.plate.slice(3, 6))).toHaveCount(1);
     await expect(carCard(page, b.plate.slice(3, 6))).toHaveCount(0);
     await searchCars(page, "zzzz-no-such-car");
-    await expect(page.getByText("Mashinalar yo'q.")).toBeVisible();
+    // R-47: a search with no hits says so instead of "no cars added yet"
+    await expect(page.getByText("No results found")).toBeVisible();
+    await expect(page.getByText("No cars yet.")).toHaveCount(0);
   });
 
   test("status switch on the car card changes availability", async ({ page }) => {
@@ -159,11 +162,10 @@ test.describe("admin cars", () => {
     await searchCars(page, car.plate.slice(2));
     const card = carCard(page, car.plate.slice(3, 6));
     await expect(card).toBeVisible();
-    // BUG: rating "4.9 (13 sharhlar)" and rental state "Bo'sh" are hard-coded
-    // for every car (a brand-new car has 0 reviews).
-    // rentix-admin/src/pages/Admin/ui/AdminCars/ui/AdminCars.tsx (ratingRow / availabilityChip)
-    test.fail();
-    await expect(card).not.toContainText("13 sharhlar", { timeout: 3_000 });
+    // R-24: rating used to be hard-coded "4.9 (13 sharhlar)" for every car;
+    // a brand-new car has 0 reviews, so no rating is shown.
+    await expect(card).not.toContainText("13 sharhlar");
+    await expect(card).not.toContainText(/\d+ (reviews|sharh)/);
   });
 
   test("admin can delete a car", async ({ page }) => {
@@ -184,7 +186,7 @@ test.describe("admin cars", () => {
     const car = await createCarApi();
     await page.goto("/admin/cars");
     await searchCars(page, car.plate.slice(2));
-    await carCard(page, car.plate.slice(3, 6)).getByRole("button", { name: /Aksiya/ }).click();
+    await carCard(page, car.plate.slice(3, 6)).getByRole("button", { name: /^Promotion/ }).click();
     await expect(page).toHaveURL(new RegExp(`/admin/cars/${car.id}/promo$`));
 
     // validation (form is pre-filled with 10% / next 7 days)

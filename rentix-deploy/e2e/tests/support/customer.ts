@@ -10,22 +10,12 @@ export const moneyRe = (n: number) =>
   new RegExp(Math.round(n).toLocaleString("en-US").replace(/,/g, "[\\s\\u00a0\\u202f]"));
 
 /**
- * Billed days for a search made now: the form defaults pick-up time to "now"
- * and return time to "now + 10h", so N picked days usually bill as N+1.
+ * Billed days for a search made now: the form defaults both pick-up and return
+ * time to "now" rounded up to :00/:30, and 24h = 1 day, so N picked days bill as N.
  */
-export const expectedDays = (startInDays: number, lengthDays: number) => {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() + startInDays);
-  const endClock = new Date(now.getTime() + 10 * 3600_000);
-  const end = new Date(start);
-  end.setDate(end.getDate() + lengthDays);
-  end.setHours(endClock.getHours(), endClock.getMinutes(), 0, 0);
-  start.setSeconds(0, 0);
-  return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 3600_000 / 24));
-};
+export const expectedDays = (_startInDays: number, lengthDays: number) => Math.max(1, lengthDays);
 
-/** Home → pick-up branch → dates → "Natijalarni ko’rish". */
+/** Home → pick-up branch → dates → "Natijalarni ko'rish". */
 export const searchCars = async (page: Page, startInDays = 2, lengthDays = 2) => {
   await page.goto("/?company=1");
   await page.locator(".ant-select").filter({ hasText: "Olib ketish joyini tanlang" }).click();
@@ -43,7 +33,7 @@ export const searchCars = async (page: Page, startInDays = 2, lengthDays = 2) =>
   await dates.getByRole("button", { name: "Tasdiqlash" }).click();
   await expect(dates).toBeHidden();
 
-  await page.getByRole("button", { name: "Natijalarni ko’rish" }).click();
+  await page.getByRole("button", { name: "Natijalarni ko'rish" }).click();
   await expect(page).toHaveURL(/\/pages\/result$/);
   await expect(page.getByText(/ta natija topildi/)).toBeVisible();
 };

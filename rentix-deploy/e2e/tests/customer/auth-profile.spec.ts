@@ -111,9 +111,9 @@ test.describe("customer profile", () => {
     await expect(page.getByText("Jarima yo‘q")).toBeVisible();
 
     await page.goto("/pages/profile");
-    await page.getByText("Ko’p so’raladigan savollar").click();
+    await page.getByText("Ko'p so'raladigan savollar").click();
     await expect(page).toHaveURL(/\/pages\/faq-question$/);
-    await expect(page.getByRole("heading", { name: "Ko’p so’raladigan savollar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ko'p so'raladigan savollar" })).toBeVisible();
 
     await page.goto("/pages/profile");
     await page.getByText("Ijara shartlari").click();
@@ -137,12 +137,13 @@ test.describe("customer profile", () => {
 
   test("guest sees no fake reminders on the Notes tab", async ({ page }) => {
     await page.goto("/pages/notes?company=1");
-    await expect(page.getByRole("heading", { name: /Eslatmalar|Hozircha eslatmalar yo‘q/ }).first()).toBeVisible();
-    // BUG: when not logged in, Notes renders hard-coded demo reminders
-    // ("Sizning buyurtmangiz boshlanishiga 2 soat qoldi." etc.) as if they were real.
-    // rentix-user/src/pages/Notes/ui/Notes.tsx (`isAuth ? [] : notesData`), Notes/model/notesData.ts
-    test.fail();
-    await expect(page.getByText("Sizning buyurtmangiz boshlanishiga 2 soat qoldi.")).toHaveCount(0, { timeout: 3_000 });
+    // R-11 fixed: guests get a sign-in prompt instead of hard-coded demo reminders.
+    await expect(
+      page.getByRole("heading", { name: "Bildirishnomalarni ko'rish uchun tizimga kiring" }),
+    ).toBeVisible();
+    await expect(page.getByText("Sizning buyurtmangiz boshlanishiga 2 soat qoldi.")).toHaveCount(0);
+    await page.getByRole("button", { name: "Tizimga kiring" }).click();
+    await expect(page).toHaveURL(/\/pages\/profile/);
   });
 });
 

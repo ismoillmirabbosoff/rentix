@@ -12,6 +12,7 @@ import {
   uniqueSuffix,
 } from "../support/api";
 import { openDrawer, pickCalendarRange, toast } from "../support/ui";
+import { moneyRe } from "../support/customer";
 
 const orderCard = (page: Page, text: string) => page.locator("article").filter({ hasText: text });
 
@@ -55,12 +56,15 @@ test.describe("manager order status flow", () => {
     await card.getByRole("button", { name: /Details/ }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}$`));
     await expect(page.getByText(customer.fullName)).toBeVisible();
-    await expect(page.getByText("Umumiy summa:")).toBeVisible();
+    // R-05/R-09: the payment details total matches the order cost the customer sees
+    const totalRow = page.getByText("Total amount:").locator("xpath=..");
+    await expect(totalRow).toBeVisible();
+    await expect(totalRow).toContainText(moneyRe(Number((await getOrderApi(order.id)).cost)));
 
-    await page.getByRole("button", { name: /Qabul qilish/ }).click();
-    await expect(page.getByText("Buyurtmani tasdiqlash")).toBeVisible();
-    await page.getByRole("button", { name: "Tasdiqlash", exact: true }).click();
-    await expect(toast(page, "Buyurtma tasdiqlandi")).toBeVisible();
+    await page.getByRole("button", { name: /Accept/ }).click();
+    await expect(page.getByText("Confirm order", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(toast(page, "Order confirmed")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("confirmed");
 
     await openActiveSubTab(page, "Tasdiqlangan");
@@ -75,9 +79,9 @@ test.describe("manager order status flow", () => {
     await page.goto("/manager/orders");
     await orderCard(page, customer.fullName).getByRole("button", { name: /Details/ }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}$`));
-    await page.getByRole("button", { name: /Rad etish/ }).click();
-    await page.getByRole("button", { name: "Ha, rad etaman" }).click();
-    await expect(toast(page, "Buyurtma bekor qilindi")).toBeVisible();
+    await page.getByRole("button", { name: /Reject/ }).click();
+    await page.getByRole("button", { name: "Yes, reject" }).click();
+    await expect(toast(page, "Order cancelled")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toMatch(/rejected|cancelled/);
 
     await openActiveSubTab(page, "Bekor qilingan");
@@ -93,7 +97,7 @@ test.describe("manager order status flow", () => {
     await openActiveSubTab(page, "Tasdiqlangan");
     const card = orderCard(page, customer.fullName);
     await card.getByRole("button", { name: /Buyurtmani bekor qilish/ }).click();
-    await page.getByRole("button", { name: "Ha, bekor qilaman" }).click();
+    await page.getByRole("button", { name: "Yes, cancel" }).click();
     await expect(toast(page, "Buyurtma bekor qilindi")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("cancelled");
   });

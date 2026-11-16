@@ -65,9 +65,14 @@ adminTest.describe("admin dashboard", () => {
     await expect(page).toHaveURL(/\/admin\/statistics$/);
     await expect(page.getByRole("heading", { name: "Statistics" })).toBeVisible();
     const card = (label: string) => page.locator("li").filter({ hasText: label });
-    await expect(card("Buyurtmalar jami")).toContainText(String(orderList.length));
-    await expect(card("Mashinalar jami")).toContainText(String(carList.length));
-    await expect(card("Bo'sh mashinalar")).toContainText(
+    const byStatus = (...st: string[]) => String(orderList.filter((o) => st.includes(o.status)).length);
+    await expect(card("Total orders")).toContainText(String(orderList.length));
+    await expect(card("Pending")).toContainText(byStatus("pending"));
+    await expect(card("Confirmed")).toContainText(byStatus("confirmed"));
+    await expect(card("Completed")).toContainText(byStatus("completed"));
+    await expect(card("Cancelled")).toContainText(byStatus("cancelled", "rejected"));
+    await expect(card("Total cars")).toContainText(String(carList.length));
+    await expect(card("Available cars")).toContainText(
       String(carList.filter((c) => c.status === "available").length),
     );
 

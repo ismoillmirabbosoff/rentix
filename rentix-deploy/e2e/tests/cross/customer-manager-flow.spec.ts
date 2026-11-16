@@ -15,7 +15,7 @@ test("customer registers and books → manager sees customer + order → confirm
   const name = `Kross Mijoz ${uniqueSuffix()}`;
 
   /* ── customer (guest) searches and books; login happens at checkout ── */
-  const days = expectedDays(4, 2); // >=24h: 1 kunlik tanlov kechki soatlarda soatlik narxga tushadi
+  const days = expectedDays(4, 2);
   await searchCars(page, 4, 2);
   await page.locator("article").filter({ hasText: moneyRe(price) }).click();
   await page.getByRole("button", { name: "Buyurtmani rasmiylashtirish" }).click();
@@ -55,9 +55,11 @@ test("customer registers and books → manager sees customer + order → confirm
     await expect(orderCard).toHaveCount(1);
     await expect(orderCard).toContainText(String(orderId));
     await orderCard.getByRole("button", { name: /Details/ }).click();
-    await m.getByRole("button", { name: /Qabul qilish/ }).click();
-    await m.getByRole("button", { name: "Tasdiqlash", exact: true }).click();
-    await expect(m.locator(".ant-message-notice").filter({ hasText: "Buyurtma tasdiqlandi" })).toBeVisible();
+    // R-05: manager sees the same total as the customer
+    await expect(m.getByText("Total amount:").locator("xpath=..")).toContainText(moneyRe(price * days));
+    await m.getByRole("button", { name: /Accept/ }).click();
+    await m.getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(m.locator(".ant-message-notice").filter({ hasText: "Order confirmed" })).toBeVisible();
   } finally {
     await managerCtx.close();
   }

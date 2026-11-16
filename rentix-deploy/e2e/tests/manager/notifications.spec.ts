@@ -1,10 +1,18 @@
 import { type Page } from "@playwright/test";
 import { managerTest as test, expect } from "../support/fixtures";
-import { Api, createCarApi, createOrderAsCustomer, registerCustomerApi, uniqueSuffix } from "../support/api";
+import {
+  Api,
+  createCarApi,
+  createManualNotificationLocal,
+  createOrderAsCustomer,
+  registerCustomerApi,
+  uniqueSuffix,
+} from "../support/api";
 import { chooseAntdOption, tapBehindTabbar } from "../support/ui";
 
+const anyNotificationCard = (page: Page, text: string) => page.locator('[class*="_paper_"]').filter({ hasText: text });
 const notificationCard = (page: Page, text: string) =>
-  page.locator('[class*="_paper_"]').filter({ hasText: text }).filter({ has: page.getByRole("button", { name: /Edit/ }) });
+  anyNotificationCard(page, text).filter({ has: page.getByRole("button", { name: /Edit/ }) });
 
 const createNotificationViaUI = async (page: Page, customerName: string, title: string, message: string) => {
   await page.goto("/manager/profile");
@@ -12,7 +20,7 @@ const createNotificationViaUI = async (page: Page, customerName: string, title: 
   await expect(page).toHaveURL(/\/manager\/notifications$/);
   await page.getByRole("heading", { name: "Notifications" }).locator("xpath=following-sibling::button[1]").click();
   await expect(page).toHaveURL(/\/manager\/notifications\/create$/);
-  await chooseAntdOption(page, page.locator(".ant-form-item").filter({ hasText: "User (role: user)" }).locator(".ant-select"), customerName);
+  await chooseAntdOption(page, page.locator(".ant-form-item").filter({ hasText: "Customer" }).locator(".ant-select"), customerName);
   await page.locator(".ant-form-item").filter({ hasText: "Title" }).locator("input").fill(title);
   await page.locator(".ant-form-item").filter({ hasText: "Message" }).locator("textarea").fill(message);
   const post = page.waitForResponse((r) => r.url().endsWith("/user/notifications/") && r.request().method() === "POST");
@@ -44,7 +52,7 @@ test.describe("manager notifications CRUD", () => {
     expect(items.map((n: { title: string }) => n.title)).toContain(title);
   });
 
-  /** Managers cannot create notifications (see above); use the one the backend generates for a new online order. */
+  /** The notification the backend generates for a new online order (a system notification). */
   const generatedNotification = async () => {
     const customer = await registerCustomerApi();
     const car = await createCarApi();
@@ -52,39 +60,55 @@ test.describe("manager notifications CRUD", () => {
     return `Yangi onlayn buyurtma №${order.id}`;
   };
 
-  test("edit a notification's title", async ({ page }) => {
+  /** Managers cannot create notifications yet (see above), so a manual one is seeded in the DB. */
+  const manualNotification = async () => {
+    const customer = await registerCustomerApi();
+    await createOrderAsCustomer(customer, (await createCarApi()).id);
+    const title = `E2E qo'lda ${uniqueSuffix()}`;
+    createManualNotificationLocal(customer.id, title);
+    return { customer, title };
+  };
+
+  test("system notifications are read-only (no Edit / Delete)", async ({ page }) => {
+    // R-33: notifications generated for order events can't be edited or deleted
     const generatedTitle = await generatedNotification();
     await page.goto("/manager/notifications");
-    const card = notificationCard(page, generatedTitle);
+    const card = anyNotificationCard(page, generatedTitle);
+    await expect(card).toHaveCount(1);
+    await expect(card.getByRole("button", { name: /Edit/ })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: /Delete/ })).toHaveCount(0);
+  });
+
+  test("edit a notification's title", async ({ page }) => {
+    const { title } = await manualNotification();
+    await page.goto("/manager/notifications");
+    const card = notificationCard(page, title);
     await expect(card).toHaveCount(1);
 
     await tapBehindTabbar(page, card.getByRole("button", { name: /Edit/ }));
     await expect(page).toHaveURL(/\/manager\/notifications\/\d+$/);
     const titleInput = page.locator(".ant-form-item").filter({ hasText: "Title" }).locator("input");
-    await expect(titleInput).toHaveValue(generatedTitle);
-    const newTitle = `${generatedTitle} (tahrir ${uniqueSuffix()})`;
+    await expect(titleInput).toHaveValue(title);
+    const newTitle = `${title} (tahrir ${uniqueSuffix()})`;
     await titleInput.fill(newTitle);
     await page.getByRole("button", { name: "Save" }).click();
-    // BUG: every notification a manager can see is a system notification with
-    // user = null, but the edit form requires "User (role: user)" — so saving
-    // only shows "Select user" and nothing can ever be edited.
-    // rentix-admin/src/pages/Manager/ui/Notifications/ManagerNotificationsEdit/ui/ManagerNotificationsEdit.tsx (validationSchema)
-    test.fail();
-    await expect(page.getByText("Notification updated.")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("Notification updated.")).toBeVisible();
+    await page.goto("/manager/notifications");
+    await expect(notificationCard(page, newTitle)).toHaveCount(1);
   });
 
   test("delete a notification", async ({ page }) => {
-    const generatedTitle = await generatedNotification();
+    const { title } = await manualNotification();
     await page.goto("/manager/notifications");
-    await expect(notificationCard(page, generatedTitle)).toHaveCount(1);
-    await tapBehindTabbar(page, notificationCard(page, generatedTitle).getByRole("button", { name: /Delete/ }));
+    await expect(notificationCard(page, title)).toHaveCount(1);
+    await tapBehindTabbar(page, notificationCard(page, title).getByRole("button", { name: /Delete/ }));
     await expect(page.getByText("Delete notification")).toBeVisible();
     const del = page.waitForResponse((r) => r.url().includes("/user/notifications/") && r.request().method() === "DELETE");
     await page.getByRole("button", { name: "Yes, delete" }).click();
     expect((await del).status()).toBeLessThan(300);
     await expect(page.getByText("Notification deleted successfully.")).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).last().click();
-    await expect(notificationCard(page, generatedTitle)).toHaveCount(0);
+    await expect(anyNotificationCard(page, title)).toHaveCount(0);
   });
 
   test("create form validation", async ({ page }) => {
