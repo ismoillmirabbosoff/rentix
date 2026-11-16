@@ -1,6 +1,6 @@
 # Demo mashina rasmlari — mualliflar
 
-Barcha rasmlar Wikimedia Commons'dan, erkin litsenziyalar ostida. Faqat o'lchami kichraytirilgan (1024px).
+Barcha rasmlar Wikimedia Commons'dan, erkin litsenziyalar ostida. Asl fayllar `photos-src/*.jpg` (1024px ga kichraytirilgan). Ilovada `photos/*.webp` ishlatiladi: bular asl rasmlardan orqa foni olib tashlangan (`cutout.py`, rembg) va kesilgan o'zgartirilgan nusxalar. CC BY-SA rasmlarining o'zgartirilgan nusxalari ham shu litsenziya ostida. chevrolet-malibu-2 va kia-k5-2 ishlatilmaydi.
 
 | Fayl | Muallif | Litsenziya | Manba |
 |---|---|---|---|

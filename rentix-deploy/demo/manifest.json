@@ -1,73 +1,71 @@
 {
  "Chevrolet Cobalt": [
-  "chevrolet-cobalt-1.jpg",
-  "chevrolet-cobalt-2.jpg"
+  "chevrolet-cobalt-1.webp",
+  "chevrolet-cobalt-2.webp"
  ],
  "Chevrolet Gentra": [
-  "chevrolet-gentra-1.jpg",
-  "chevrolet-gentra-2.jpg"
+  "chevrolet-gentra-1.webp",
+  "chevrolet-gentra-2.webp"
  ],
  "Chevrolet Malibu": [
-  "chevrolet-malibu-1.jpg",
-  "chevrolet-malibu-2.jpg"
+  "chevrolet-malibu-1.webp"
  ],
  "Chevrolet Tracker": [
-  "chevrolet-tracker-1.jpg",
-  "chevrolet-tracker-2.jpg",
-  "chevrolet-tracker-3.jpg"
+  "chevrolet-tracker-1.webp",
+  "chevrolet-tracker-2.webp",
+  "chevrolet-tracker-3.webp"
  ],
  "Toyota Camry": [
-  "toyota-camry-1.jpg",
-  "toyota-camry-2.jpg"
+  "toyota-camry-1.webp",
+  "toyota-camry-2.webp"
  ],
  "Toyota Corolla": [
-  "toyota-corolla-1.jpg",
-  "toyota-corolla-2.jpg"
+  "toyota-corolla-1.webp",
+  "toyota-corolla-2.webp"
  ],
  "Toyota Land Cruiser Prado": [
-  "toyota-land-cruiser-prado-1.jpg",
-  "toyota-land-cruiser-prado-2.jpg"
+  "toyota-land-cruiser-prado-1.webp",
+  "toyota-land-cruiser-prado-2.webp"
  ],
  "Hyundai Sonata": [
-  "hyundai-sonata-1.jpg",
-  "hyundai-sonata-2.jpg"
+  "hyundai-sonata-1.webp",
+  "hyundai-sonata-2.webp"
  ],
  "Hyundai Tucson": [
-  "hyundai-tucson-1.jpg",
-  "hyundai-tucson-2.jpg"
+  "hyundai-tucson-1.webp",
+  "hyundai-tucson-2.webp"
  ],
  "Hyundai Elantra": [
-  "hyundai-elantra-1.jpg",
-  "hyundai-elantra-2.jpg"
+  "hyundai-elantra-1.webp",
+  "hyundai-elantra-2.webp"
  ],
  "Kia K5": [
-  "kia-k5-1.jpg",
-  "kia-k5-2.jpg"
+  "kia-k5-1.webp"
  ],
  "Kia Sportage": [
-  "kia-sportage-1.jpg",
-  "kia-sportage-2.jpg"
+  "kia-sportage-1.webp",
+  "kia-sportage-2.webp"
  ],
  "BMW 520d": [
-  "bmw-520d-1.jpg"
+  "bmw-520d-1.webp"
  ],
  "BMW X5": [
-  "bmw-x5-1.jpg",
-  "bmw-x5-2.jpg"
+  "bmw-x5-1.webp",
+  "bmw-x5-2.webp"
  ],
  "Mercedes-Benz E 200": [
-  "mercedes-benz-e-200-1.jpg",
-  "mercedes-benz-e-200-2.jpg"
+  "mercedes-benz-e-200-1.webp",
+  "mercedes-benz-e-200-2.webp"
  ],
  "Mercedes-Benz GLE 450": [
-  "mercedes-benz-gle-450-1.jpg"
+  "mercedes-benz-gle-450-1.webp"
  ],
  "Lexus RX 350": [
-  "lexus-rx-350-1.jpg",
-  "lexus-rx-350-2.jpg"
+  "lexus-rx-350-1.webp",
+  "lexus-rx-350-2.webp"
  ],
  "BYD Song Plus": [
-  "byd-song-plus-1.jpg",
-  "byd-song-plus-2.jpg"
+  "byd-song-plus-1.webp",
+  "byd-song-plus-2.webp"
  ]
 }

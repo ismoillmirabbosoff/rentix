@@ -33,6 +33,9 @@ for car in Car.objects.select_related("brand", "model"):
     done += 1
 print(f"✓ rasmlar almashtirildi: {done} ta mashina" + (f", rasmsiz: {missing}" if missing else ""))
 
+if os.getenv("RENTIX_PHOTOS_ONLY") == "1":
+    raise SystemExit(0)
+
 pw = (os.getenv("RENTIX_MANAGER_PASSWORD") or "").strip()
 if pw:
     n = Manager.objects.update(password=make_password(pw))
