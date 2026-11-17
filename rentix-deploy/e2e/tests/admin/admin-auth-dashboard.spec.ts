@@ -35,9 +35,7 @@ base.describe("admin login / logout (fresh session)", () => {
   });
 
   base("wrong password shows an error and does not log in", async ({ page }) => {
-    // BUG: LoginForm passes `onError: () => {}` to usePost, so a 401
-    // ("Login yoki parol noto'g'ri") is swallowed and the user gets no feedback at all.
-    // rentix-admin/src/features/AuthByUsername/ui/LoginForm/LoginForm.tsx
+    // Fixed (round 2): the server error is shown under the password field.
     await page.goto("/login");
     await page.getByPlaceholder("Enter the username").fill(creds.admin().login);
     await page.getByPlaceholder("Enter the password").fill("definitely-wrong-password");
@@ -45,8 +43,9 @@ base.describe("admin login / logout (fresh session)", () => {
     await page.getByRole("button", { name: "Log In" }).click();
     expect((await resp).status()).toBe(401);
     await expect(page).toHaveURL(/\/login$/);
-    base.fail(); // see BUG note above — everything before this line must pass
-    await expect(page.getByText(/noto'g'ri|incorrect|invalid|wrong|xato/i)).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.locator(".ant-form-item-explain-error").filter({ hasText: /noto'g'ri|incorrect|invalid|wrong|xato/i }),
+    ).toBeVisible();
   });
 });
 

@@ -14,7 +14,7 @@ const pickFromDrawer = async (page: Page, drawerTitle: string, item: string) => 
   const drawer = openDrawer(page, drawerTitle);
   await expect(drawer).toBeVisible();
   await drawer.getByRole("button", { name: item }).first().click();
-  await drawer.getByRole("button", { name: "Tanlash" }).click();
+  await drawer.getByRole("button", { name: "Select" }).click();
   await expect(drawer).toBeHidden();
 };
 
@@ -24,10 +24,10 @@ const chooseSelect = async (page: Page, label: string, option: string) => {
 };
 
 const carCard = (page: Page, plateFragment: string) =>
-  page.locator("li").filter({ hasText: plateFragment }).filter({ has: page.getByRole("button", { name: /Tahrirlash/ }) });
+  page.locator("li").filter({ hasText: plateFragment }).filter({ has: page.getByRole("button", { name: /^Edit/ }) });
 
 const searchCars = async (page: Page, term: string) => {
-  await page.getByPlaceholder("Qidirish...").fill(term);
+  await page.getByPlaceholder("Search...").fill(term);
 };
 
 const getCar = async (id: number) => {
@@ -45,7 +45,7 @@ test.describe("admin cars", () => {
     await expect(page).toHaveURL(/\/admin\/cars$/);
     await expect(page.getByRole("heading", { name: "Cars" }).first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Mashina qo'shish" }).click();
+    await page.getByRole("button", { name: "Add car" }).click();
     await expect(page).toHaveURL(/\/admin\/cars\/create$/);
 
     // Image
@@ -53,21 +53,21 @@ test.describe("admin cars", () => {
     await expect(page.getByRole("img", { name: "front.png" })).toBeVisible();
 
     // Brand / model pickers
-    // R-56: brand = "marka", model = "model" (was "rusum" / "marka")
-    await page.getByRole("button", { name: /Avtomobil markasi/ }).click();
-    await pickFromDrawer(page, "Avtomobil markasi", "Chevrolet");
-    await page.getByRole("button", { name: /Avtomobil modeli/ }).click();
-    await pickFromDrawer(page, "Avtomobil modeli", "Malibu");
-    await expect(page.getByRole("button", { name: /Avtomobil modeli.*Malibu/ })).toBeVisible();
+    // R-56: brand = "marka", model = "model" (N-04: admin car form is translated, en-US here)
+    await page.getByRole("button", { name: /Car make/ }).click();
+    await pickFromDrawer(page, "Car make", "Chevrolet");
+    await page.getByRole("button", { name: /Car model/ }).click();
+    await pickFromDrawer(page, "Car model", "Malibu");
+    await expect(page.getByRole("button", { name: /Car model.*Malibu/ })).toBeVisible();
 
-    await chooseSelect(page, "Avtomobil rangi", "Black");
-    await chooseSelect(page, "Yoqilg'i turi", "Benzin");
-    await chooseSelect(page, "Mashina kodi", "01");
+    await chooseSelect(page, "Car color", "Black");
+    await chooseSelect(page, "Fuel type", "Petrol");
+    await chooseSelect(page, "Region code", "01");
     await page.locator("#car-form-car_number").fill(plate);
     await expect(page.locator("#car-form-car_number")).toHaveValue(
       `${plate[0]} ${plate.slice(1, 4)} ${plate.slice(4)}`,
     );
-    await carField(page, "Mashina holati").getByText("Mavjud", { exact: true }).click();
+    await carField(page, "Car status").getByText("Available", { exact: true }).click();
     await page.locator("#car-form-sit_number").fill("5");
     await page.locator("#car-form-day_limit_city").fill("250");
     await page.locator("#car-form-cashbeck").fill("3");
@@ -78,11 +78,11 @@ test.describe("admin cars", () => {
 
     const created = page.waitForResponse((r) => r.url().includes("/user/create-car/") && r.request().method() === "POST");
     const imageUpload = page.waitForResponse((r) => r.url().endsWith("/user/car-images/") && r.request().method() === "POST");
-    await page.getByRole("button", { name: "Mashina qo'shish" }).click();
+    await page.getByRole("button", { name: "Add car" }).click();
     const createdBody = await (await created).json();
     expect((await imageUpload).status()).toBeLessThan(300);
-    await expect(page.getByText("Mashina qo'shildi")).toBeVisible();
-    await page.getByRole("button", { name: "Mashinalarga qaytish" }).click();
+    await expect(page.getByText("Car added")).toBeVisible();
+    await page.getByRole("button", { name: "Back to cars" }).click();
     await expect(page).toHaveURL(/\/admin\/cars$/);
 
     await searchCars(page, plate);
@@ -100,10 +100,11 @@ test.describe("admin cars", () => {
 
   test("form validation blocks submitting an empty car", async ({ page }) => {
     await page.goto("/admin/cars/create");
-    await page.getByRole("button", { name: "Mashina qo'shish" }).click();
-    await expect(page.getByText("Rang tanlash majburiy")).toBeVisible();
-    await expect(page.getByText("Mashina raqami majburiy")).toBeVisible();
-    await expect(page.getByText("Kunlik narx majburiy")).toBeVisible();
+    await page.getByRole("button", { name: "Add car" }).click();
+    const fieldError = (text: string) => page.locator(".ant-form-item-explain-error", { hasText: text });
+    await expect(fieldError("Select a color")).toBeVisible();
+    await expect(fieldError("Enter the plate number")).toBeVisible();
+    await expect(fieldError("Enter the daily price")).toBeVisible();
     await expect(page).toHaveURL(/\/admin\/cars\/create$/);
   });
 
@@ -113,15 +114,15 @@ test.describe("admin cars", () => {
     await searchCars(page, car.plate.slice(2));
     const card = carCard(page, car.plate.slice(3, 6));
     await expect(card).toHaveCount(1);
-    await card.getByRole("button", { name: /Tahrirlash/ }).click();
+    await card.getByRole("button", { name: /^Edit/ }).click();
     await expect(page).toHaveURL(new RegExp(`/admin/cars/${car.id}$`));
 
-    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue("300000");
+    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue("300 000");
     await page.locator("#car-form-cost_day_tash").fill("355000");
     await page.locator('input[type="file"]').setInputFiles(pngFile("side.png"));
-    await page.getByRole("button", { name: "O'zgarishlarni saqlash" }).click();
-    await expect(page.getByText("O'zgarishlar saqlandi")).toBeVisible();
-    await page.getByRole("button", { name: "Mashinalarga qaytish" }).click();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("Changes saved")).toBeVisible();
+    await page.getByRole("button", { name: "Back to cars" }).click();
 
     const updated = await getCar(car.id);
     expect(Number(updated.cost_day_tash)).toBe(355000);
@@ -148,12 +149,10 @@ test.describe("admin cars", () => {
     const card = carCard(page, car.plate.slice(3, 6));
     const sw = card.getByRole("switch");
     await expect(sw).toBeChecked();
-    // BUG: the antd <Switch> on the car card has no onChange handler (and its
-    // wrapper intercepts pointer events), so it is purely decorative — tapping
-    // it never PATCHes the car. rentix-admin/src/pages/Admin/ui/AdminCars/ui/AdminCars.tsx (statusControl)
-    test.fail();
-    await sw.click({ timeout: 3_000 });
+    // N-15/N-35 fixed: the switch PATCHes the car's on/off status.
+    await sw.click();
     await expect.poll(async () => (await getCar(car.id)).status, { timeout: 5_000 }).toBe("unavailable");
+    await expect(sw).not.toBeChecked();
   });
 
   test("car card shows the car's real rating, not placeholder data", async ({ page }) => {
@@ -171,7 +170,7 @@ test.describe("admin cars", () => {
   test("admin can delete a car", async ({ page }) => {
     const car = await createCarApi();
     await page.goto(`/admin/cars/${car.id}`);
-    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue("300000");
+    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue("300 000");
     // BUG / missing feature: there is no delete action for a car anywhere in the
     // admin UI (list card or edit form), although the API (DELETE /user/car/<id>/)
     // and the "Delete car" translations exist.
@@ -190,36 +189,37 @@ test.describe("admin cars", () => {
     await expect(page).toHaveURL(new RegExp(`/admin/cars/${car.id}/promo$`));
 
     // validation (form is pre-filled with 10% / next 7 days)
-    const percent = page.getByPlaceholder("Aksiya foizini kiriting");
+    const percent = page.getByPlaceholder("Enter the discount percentage");
     await percent.fill("");
-    await page.getByRole("button", { name: "Aksiyaga qo'yish" }).click();
-    await expect(page.locator('[class*="fieldErrorText"]', { hasText: "Aksiya foizini kiriting" })).toBeVisible();
+    await page.getByRole("button", { name: "Start promotion" }).click();
+    await expect(page.locator('[class*="fieldErrorText"]', { hasText: "Enter the discount percentage" })).toBeVisible();
     await percent.fill("150");
-    await expect(page.locator('[class*="fieldErrorText"]', { hasText: "Foiz 1 dan 100 gacha" })).toBeVisible();
+    await expect(page.locator('[class*="fieldErrorText"]', { hasText: "Percentage must be between 1 and 100" })).toBeVisible();
 
     await percent.fill("15");
     await page.locator('button[class*="rangeCard"]').click();
-    const drawer = openDrawer(page, "Aksiya muddati");
+    const drawer = openDrawer(page, "Promotion period");
     const start = new Date();
     start.setDate(start.getDate() + 2);
     const end = new Date();
     end.setDate(end.getDate() + 5);
     await pickCalendarRange(drawer, start, end);
-    await drawer.getByRole("button", { name: "Tanlash" }).click();
+    await drawer.getByRole("button", { name: "Select" }).click();
     await expect(drawer).toBeHidden();
 
     const post = page.waitForResponse((r) => r.url().includes(`/user/car/${car.id}/promos/`) && r.request().method() === "POST");
-    await page.getByRole("button", { name: "Aksiyaga qo'yish" }).click();
+    await page.getByRole("button", { name: "Start promotion" }).click();
     expect((await post).status()).toBeLessThan(300);
 
     const history = page.locator('article[class*="historyCard"]').filter({ hasText: "15%" });
     await expect(history).toHaveCount(1);
-    await expect(history).toContainText("Yaqinlashib kelayotgan");
+    await expect(history).toContainText("Upcoming");
 
     const cancel = page.waitForResponse((r) => r.url().includes("/cancel/"));
-    await history.getByRole("button", { name: /Aksiyani bekor qilish/ }).click();
+    await history.getByRole("button", { name: /Cancel promotion/ }).click();
+    await page.getByRole("button", { name: "Yes, cancel" }).click();
     expect((await cancel).status()).toBeLessThan(300);
-    await expect(history).toContainText("Bekor qilingan");
+    await expect(history).toContainText("Cancelled");
 
     const api = await Api.staff("admin");
     const promos = await api.get(`/user/car/${car.id}/promos/`);

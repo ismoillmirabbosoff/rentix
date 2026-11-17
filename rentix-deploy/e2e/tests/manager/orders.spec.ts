@@ -16,7 +16,7 @@ import { moneyRe } from "../support/customer";
 
 const orderCard = (page: Page, text: string) => page.locator("article").filter({ hasText: text });
 
-const openActiveSubTab = async (page: Page, sub: "Tasdiqlangan" | "Jarayonda" | "Yakunlangan" | "Bekor qilingan") => {
+const openActiveSubTab = async (page: Page, sub: "Confirmed" | "In progress" | "Completed" | "Cancelled") => {
   await page.goto("/manager/orders");
   await page.locator(".ant-segmented-item").filter({ hasText: "Active" }).click();
   await page.getByRole("button", { name: new RegExp(`^${sub}`) }).click();
@@ -56,8 +56,8 @@ test.describe("manager order status flow", () => {
     await card.getByRole("button", { name: /Details/ }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}$`));
     await expect(page.getByText(customer.fullName)).toBeVisible();
-    // R-05/R-09: the payment details total matches the order cost the customer sees
-    const totalRow = page.getByText("Total amount:").locator("xpath=..");
+    // R-05/R-09, N-01: "Total payable" (incl. the deposit) matches the order cost the customer sees
+    const totalRow = page.getByText("Total payable:").locator("xpath=..");
     await expect(totalRow).toBeVisible();
     await expect(totalRow).toContainText(moneyRe(Number((await getOrderApi(order.id)).cost)));
 
@@ -67,8 +67,8 @@ test.describe("manager order status flow", () => {
     await expect(toast(page, "Order confirmed")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("confirmed");
 
-    await openActiveSubTab(page, "Tasdiqlangan");
-    await expect(orderCard(page, customer.fullName)).toContainText("Mashinani mijozga topshirish");
+    await openActiveSubTab(page, "Confirmed");
+    await expect(orderCard(page, customer.fullName)).toContainText("Hand over the car");
   });
 
   test("pending online order: reject", async ({ page }) => {
@@ -80,11 +80,16 @@ test.describe("manager order status flow", () => {
     await orderCard(page, customer.fullName).getByRole("button", { name: /Details/ }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}$`));
     await page.getByRole("button", { name: /Reject/ }).click();
+    // R-42: a reason is required before rejecting
+    await page.getByRole("button", { name: "Yes, reject" }).click();
+    await expect(page.getByText("Select a reason")).toBeVisible();
+    await page.getByRole("radio", { name: "Customer request" }).check();
     await page.getByRole("button", { name: "Yes, reject" }).click();
     await expect(toast(page, "Order cancelled")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toMatch(/rejected|cancelled/);
+    expect((await getOrderApi(order.id)).cancel_reason).toBe("Customer request");
 
-    await openActiveSubTab(page, "Bekor qilingan");
+    await openActiveSubTab(page, "Cancelled");
     await expect(orderCard(page, customer.fullName)).toHaveCount(1);
   });
 
@@ -94,23 +99,28 @@ test.describe("manager order status flow", () => {
     const order = await createOrderAsCustomer(customer, car.id);
     await setOrderStatusApi(order.id, "confirmed");
 
-    await openActiveSubTab(page, "Tasdiqlangan");
+    await openActiveSubTab(page, "Confirmed");
     const card = orderCard(page, customer.fullName);
-    await card.getByRole("button", { name: /Buyurtmani bekor qilish/ }).click();
+    await card.getByRole("button", { name: /Cancel order/ }).click();
+    // R-42: reason required ("Other" needs a description)
+    await page.getByRole("radio", { name: "Other" }).check();
     await page.getByRole("button", { name: "Yes, cancel" }).click();
-    await expect(toast(page, "Buyurtma bekor qilindi")).toBeVisible();
+    await expect(page.getByText("Describe the reason").last()).toBeVisible();
+    await page.getByPlaceholder("Describe the reason").fill("E2E: mijoz kelmadi");
+    await page.getByRole("button", { name: "Yes, cancel" }).click();
+    await expect(toast(page, "Order cancelled")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("cancelled");
+    expect((await getOrderApi(order.id)).cancel_reason).toBe("E2E: mijoz kelmadi");
   });
 
   test("confirmed online order: complete renter data → hand over car → return car → completed", async ({ page }) => {
-    const bugs: string[] = [];
     const customer = await registerCustomerApi();
     const car = await createCarApi();
     const order = await createOrderAsCustomer(customer, car.id);
     await setOrderStatusApi(order.id, "confirmed");
 
-    await openActiveSubTab(page, "Tasdiqlangan");
-    await orderCard(page, customer.fullName).getByRole("button", { name: /Mashinani mijozga topshirish/ }).click();
+    await openActiveSubTab(page, "Confirmed");
+    await orderCard(page, customer.fullName).getByRole("button", { name: /Hand over the car/ }).click();
 
     // Online orders have no passport data yet → "complete the order" cycle (step 1/3)
     await expect(page).toHaveURL(new RegExp(`/manager/orders/form/${car.id}$`));
@@ -122,24 +132,16 @@ test.describe("manager order status flow", () => {
     // Step 3/3
     await expect(page).toHaveURL(/\/manager\/orders\/checkout$/);
     const patch = page.waitForResponse((r) => r.url().includes(`/user/order/${order.id}/`) && r.request().method() === "PATCH");
-    await page.getByRole("button", { name: "Tasdiqlash va topshirish" }).click();
+    await page.getByRole("button", { name: "Save contract" }).click();
     expect((await patch).status()).toBeLessThan(300);
 
-    // BUG: after the PATCH the app navigates to the handover page, but the
-    // checkout page's `if (!draft) navigate(MANAGER_ORDERS)` effect fires after
-    // clearOrderPaymentDraft() and bounces the manager to the orders list.
-    // The manager has to press "Mashinani mijozga topshirish" a second time.
-    // rentix-admin/src/pages/Manager/ui/Orders/ManagerOrderCheckout/ui/ManagerOrderCheckout.tsx (draft guard useEffect + finalize)
-    await page.waitForURL(/\/manager\/orders(\/\d+\/handover)?$/);
+    // N-11 fixed: after saving the contract the manager goes straight to the photos step
+    await expect(toast(page, "Contract saved. Now upload the car photos")).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/handover$`));
     await page.waitForTimeout(1_000);
-    if (!/\/handover$/.test(page.url())) {
-      bugs.push("checkout → handover redirect bounced to /manager/orders");
-      await openActiveSubTab(page, "Tasdiqlangan");
-      await orderCard(page, customer.fullName).getByRole("button", { name: /Mashinani mijozga topshirish/ }).click();
-    }
+    await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/handover$`));
 
     // Handover photos
-    await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/handover$`));
     await page.getByRole("button", { name: "Mashinani topshirish" }).click();
     await expect(page.getByText("Rasm yuklash majburiy").first()).toBeVisible();
     await uploadFourSides(page);
@@ -151,20 +153,16 @@ test.describe("manager order status flow", () => {
     expect(afterHandover.renter_passport_no).toMatch(/^AB\d{7}$/);
 
     // Return
-    await openActiveSubTab(page, "Jarayonda");
-    await orderCard(page, customer.fullName).getByRole("button", { name: /Buyurtmani yakunlash/ }).click();
+    await openActiveSubTab(page, "In progress");
+    await orderCard(page, customer.fullName).getByRole("button", { name: /Complete order/ }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/return$`));
     await uploadFourSides(page);
     await page.getByRole("button", { name: "Mashinani qabul qilish" }).click();
     await expect(toast(page, "Mashina muvaffaqiyatli qabul qilindi")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("completed");
 
-    await openActiveSubTab(page, "Yakunlangan");
+    await openActiveSubTab(page, "Completed");
     await expect(orderCard(page, customer.fullName)).toHaveCount(1);
-
-    // Whole flow works, but the step-3 → handover navigation is broken (see above).
-    if (bugs.length) test.fail();
-    expect(bugs).toEqual([]);
   });
 });
 

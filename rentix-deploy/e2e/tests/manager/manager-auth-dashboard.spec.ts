@@ -1,6 +1,6 @@
 import { test as base, type Page } from "@playwright/test";
 import { managerTest as test, expect } from "../support/fixtures";
-import { Api, createCarApi } from "../support/api";
+import { Api, createCarApi, createOrderAsCustomer, forceOrderStatusLocal, registerCustomerApi } from "../support/api";
 import { creds } from "../support/env";
 
 const carCards = (page: Page) =>
@@ -26,7 +26,13 @@ base("manager can log out from the More tab", async ({ page }) => {
 test.describe("manager dashboard", () => {
   test("available / busy tabs and search by plate", async ({ page }) => {
     const free = await createCarApi();
-    const busy = await createCarApi({ status: "unavailable" });
+    // N-15: a car the admin switched off is not offered for a new order
+    const off = await createCarApi({ status: "unavailable" });
+    // "Busy" = the car has a current rental (current_order), not the on/off flag
+    const busy = await createCarApi();
+    const customer = await registerCustomerApi();
+    const order = await createOrderAsCustomer(customer, busy.id);
+    forceOrderStatusLocal(order.id, "in_progress");
 
     await page.goto("/manager");
     await expect(page).toHaveURL(/\/manager\/dashboard$/);
@@ -37,13 +43,22 @@ test.describe("manager dashboard", () => {
     await expect(carCards(page)).toContainText("Chevrolet");
     await expect(carCards(page)).toContainText("Daily rental");
 
+    await search.fill(off.plate.slice(2));
+    await expect(carCards(page)).toHaveCount(0);
     await search.fill(busy.plate.slice(2));
     await expect(carCards(page)).toHaveCount(0);
-    await page.locator(".ant-segmented-item").filter({ hasText: "Busy cars" }).click();
-    await expect(carCards(page)).toHaveCount(1);
 
-    await search.fill(free.plate.slice(2));
+    await page.locator(".ant-segmented-item").filter({ hasText: "Busy cars" }).click();
+    // busy card: current renter + order, no "formalize" button
+    const busyCard = page.locator('[class*="_paper_"]').filter({ hasText: `#${order.id}` });
+    await expect(busyCard).toHaveCount(1);
+    await expect(busyCard).toContainText(customer.fullName);
+    await expect(busyCard.getByRole("button", { name: "Contact customer" })).toBeVisible();
     await expect(carCards(page)).toHaveCount(0);
+
+    await search.fill(off.plate.slice(2));
+    await expect(page.locator('[class*="_paper_"]').filter({ hasText: /#\d+/ })).toHaveCount(0);
+    await search.fill(free.plate.slice(2));
     await expect(page.getByRole("heading", { name: "No busy cars" })).toBeVisible();
   });
 
@@ -76,7 +91,7 @@ test.describe("manager profile (More)", () => {
 
     await page.getByText("Cars count").click();
     await expect(page).toHaveURL(/\/manager\/cars$/);
-    await page.getByPlaceholder("Qidirish...").fill(car.plate.slice(2));
+    await page.getByPlaceholder("Search...").fill(car.plate.slice(2));
     await expect(page.locator("li").filter({ hasText: car.plate.slice(3, 6) })).toHaveCount(1);
   });
 

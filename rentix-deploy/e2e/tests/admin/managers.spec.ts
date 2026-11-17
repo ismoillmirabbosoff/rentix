@@ -35,7 +35,7 @@ const createManagerViaUI = async (page: Page, opts: { login: string; password: s
   await page.getByPlaceholder("Enter full name").fill(opts.fullName);
   await page.locator(".ant-select").filter({ hasText: "Select a branch" }).click();
   await page.locator(".ant-select-dropdown:visible .ant-select-item-option", { hasText: "Default filial" }).click();
-  await page.getByPlaceholder("+998901234567").first().fill(`+99891${rand(7)}`);
+  await page.getByPlaceholder("+998 (__) ___ __ __").first().fill(`+99891${rand(7)}`);
   await page.getByPlaceholder("Enter login").fill(opts.login);
   await page.getByPlaceholder("Enter password").fill(opts.password);
   await page.getByPlaceholder("E.g.: 09:00-18:00 or 24/7").fill("09:00-18:00");
@@ -67,9 +67,13 @@ test.describe("admin managers", () => {
     await expect(page.locator(".ant-form-item-explain-error, [class*=error]").filter({ hasText: "Enter login" }).first()).toBeVisible();
     await expect(page.locator(".ant-form-item-explain-error, [class*=error]").filter({ hasText: "Select a branch" }).first()).toBeVisible();
     await expect(page.getByText("Enter working hours")).toBeVisible();
-    await page.getByPlaceholder("+998901234567").first().fill("12345");
-    await page.getByPlaceholder("+998901234567").first().blur();
+    await page.getByPlaceholder("+998 (__) ___ __ __").first().fill("12345");
+    await page.getByPlaceholder("+998 (__) ___ __ __").first().blur();
     await expect(page.getByText("Invalid phone number")).toBeVisible();
+    // N-20: password policy — at least 8 characters with a letter and a digit
+    await page.getByPlaceholder("Enter password").fill("abcdefgh");
+    await page.getByPlaceholder("Enter password").blur();
+    await expect(page.getByText("Password must be at least 8 characters and contain letters and digits")).toBeVisible();
     // R-27: working hours are validated
     await page.getByPlaceholder("E.g.: 09:00-18:00 or 24/7").fill("ertalab");
     await page.getByPlaceholder("E.g.: 09:00-18:00 or 24/7").blur();

@@ -70,28 +70,19 @@ export const deleteFilialLocal = (id: number) => {
   }
 };
 
-/** 1x1 PNG used for every upload. */
 /**
- * A manual (non-system) notification for a customer, like the ones the manager
- * "create notification" form is meant to produce. That form cannot create
- * anything yet (NotificationViewSet.perform_create refuses staff — see
- * manager/notifications.spec.ts), so it is inserted straight into the DB.
- * Local stack only. Returns the notification id.
+ * Moves an order straight to the given status in the DB (e.g. "in_progress" to
+ * make its car busy right now without the handover UI). Local stack only.
  */
-export const createManualNotificationLocal = (userId: number, title: string, companyId = 1): number => {
-  if (!IS_LOCAL) throw new Error("createManualNotificationLocal needs the local docker stack");
+export const forceOrderStatusLocal = (orderId: number, status: string) => {
+  if (!IS_LOCAL) throw new Error("forceOrderStatusLocal needs the local docker stack");
   const py =
-    "from user.models import Notification; " +
-    `n = Notification.objects.create(user_id=${Number(userId)}, company_id=${Number(companyId)}, ` +
-    `title=${JSON.stringify(title)}, message='E2E manual xabar'); print(n.id)`;
-  const out = execSync(`docker exec rentix-backend python manage.py shell -c ${JSON.stringify(py)}`, {
-    encoding: "utf8",
-  });
-  const id = Number(out.trim().split(/\s+/).pop());
-  if (!Number.isInteger(id)) throw new Error(`unexpected shell output: ${out}`);
-  return id;
+    "from user.models import Order; " +
+    `Order.objects.filter(id=${Number(orderId)}).update(status=${JSON.stringify(status)})`;
+  execSync(`docker exec rentix-backend python manage.py shell -c ${JSON.stringify(py)}`, { stdio: "ignore" });
 };
 
+/** 1x1 PNG used for every upload. */
 export const PNG_1PX = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
   "base64",
@@ -264,6 +255,9 @@ export interface CreatedCar {
   costDay: number;
 }
 
+/** Deposit (zalog) of cars made by createCarApi — part of the payable total (N-01). */
+export const CAR_DEPOSIT = 1_000_000;
+
 /** Creates an available Chevrolet Gentra (brand 1 / model 1) owned by the admin's company. */
 export const createCarApi = async (
   overrides: Record<string, string> = {},
@@ -281,7 +275,7 @@ export const createCarApi = async (
       car_number: plate,
       cost_day_tash: "300000",
       cost_hour_tash: "20000",
-      depozit: "1000000",
+      depozit: String(CAR_DEPOSIT),
       day_limit_city: "200",
       is_auto: "true",
       transmission: "false",

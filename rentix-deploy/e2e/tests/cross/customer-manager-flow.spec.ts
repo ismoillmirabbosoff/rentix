@@ -1,6 +1,6 @@
 import { devices } from "@playwright/test";
 import { customerTest as test, expect, fillCustomerPhone } from "../support/fixtures";
-import { createCarApi, freshAuthState, uniquePhone, uniqueSuffix } from "../support/api";
+import { CAR_DEPOSIT, createCarApi, freshAuthState, uniquePhone, uniqueSuffix } from "../support/api";
 import { ADMIN_URL } from "../support/env";
 import { expectedDays, moneyRe, searchCars, uniquePrice } from "../support/customer";
 
@@ -20,6 +20,9 @@ test("customer registers and books → manager sees customer + order → confirm
   await page.locator("article").filter({ hasText: moneyRe(price) }).click();
   await page.getByRole("button", { name: "Buyurtmani rasmiylashtirish" }).click();
   await page.getByRole("button", { name: "Naqd" }).click();
+  // R-22: driver documents are required before the order is sent
+  await page.getByPlaceholder("Familiya Ism Sharif").fill(name);
+  await page.getByPlaceholder("AA 1234567").fill("AB 7654321");
   await page.getByRole("button", { name: "To'lash" }).click();
 
   // not logged in → phone login drawer
@@ -34,7 +37,9 @@ test("customer registers and books → manager sees customer + order → confirm
   const orderId: number = (await createResp.json()).data.id;
   await expect(page).toHaveURL(new RegExp(`/order/${orderId}$`));
   await expect(page.getByText("Kutilmoqda").first()).toBeVisible();
-  await expect(page.getByText(moneyRe(price * days)).first()).toBeVisible();
+  // N-01: payable total includes the deposit
+  const payable = price * days + CAR_DEPOSIT;
+  await expect(page.getByText(moneyRe(payable)).first()).toBeVisible();
 
   /* ── manager ── */
   const managerCtx = await browser.newContext({
@@ -56,7 +61,7 @@ test("customer registers and books → manager sees customer + order → confirm
     await expect(orderCard).toContainText(String(orderId));
     await orderCard.getByRole("button", { name: /Details/ }).click();
     // R-05: manager sees the same total as the customer
-    await expect(m.getByText("Total amount:").locator("xpath=..")).toContainText(moneyRe(price * days));
+    await expect(m.getByText("Total payable:").locator("xpath=..")).toContainText(moneyRe(payable));
     await m.getByRole("button", { name: /Accept/ }).click();
     await m.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(m.locator(".ant-message-notice").filter({ hasText: "Order confirmed" })).toBeVisible();

@@ -1,6 +1,6 @@
 import { type Page } from "@playwright/test";
 import { customerTest as test, expect, seedCustomerSession } from "../support/fixtures";
-import { Api, createCarApi, isoLocal, registerCustomerApi } from "../support/api";
+import { Api, CAR_DEPOSIT, createCarApi, futureRange, getOrderApi, isoLocal, registerCustomerApi } from "../support/api";
 import { expectedDays, moneyRe, searchCars, uniquePrice } from "../support/customer";
 
 const resultCard = (page: Page, price: number) =>
@@ -79,14 +79,31 @@ test.describe("customer: browse and filter cars", () => {
 
   test("cars marked unavailable by the company are not offered", async ({ page }) => {
     const price = uniquePrice();
-    await createCarApi({ cost_day_tash: String(price), status: "unavailable" });
+    const off = await createCarApi({ cost_day_tash: String(price), status: "unavailable" });
     await searchCars(page, 2, 1);
     await expect(page.locator("article").first()).toBeVisible();
-    // BUG: /user/filter-car/ ignores Car.status, so cars the admin set to
-    // "Mavjud emas" (unavailable) are still listed and bookable.
-    // rentix-backend/user/views.py (AvailableCarsAPIView)
-    test.fail();
-    await expect(resultCard(page, price)).toHaveCount(0, { timeout: 3_000 });
+    // N-15 fixed: /user/filter-car/ skips cars the admin set to "Mavjud emas"…
+    await expect(resultCard(page, price)).toHaveCount(0);
+    // …and the server refuses to book them.
+    const customer = await registerCustomerApi();
+    const api = await Api.as(customer.access);
+    const range = futureRange(2);
+    const res = await api.post("/user/create-order/", {
+      car: off.id,
+      filial: 1,
+      start_time: range.startIso,
+      end_time: range.endIso,
+      location_from: "Default filial",
+      location_to: "Default filial",
+      region: "tashkentCity",
+      airport_VIP: false,
+      is_driver: false,
+      use_cashback: false,
+      payment_system: "cash",
+    });
+    await api.dispose();
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(JSON.stringify(res.body)).toContain("car");
   });
 
   test("car details page", async ({ page }) => {
@@ -120,9 +137,21 @@ test.describe("customer: booking and own orders", () => {
     await expect(page).toHaveURL(/\/order\/create$/);
     await expect(page.getByRole("heading", { name: "Buyurtmani rasmiylashtirish" })).toBeVisible();
     await expect(page.getByText("Oq, Chevrolet Gentra")).toBeVisible();
-    await expect(page.locator("footer")).toContainText(moneyRe(price * days));
+    // N-01/N-19: payable total = rental + deposit (zalog)
+    const payable = price * days + CAR_DEPOSIT;
+    await expect(page.locator("footer")).toContainText(moneyRe(payable));
 
+    // R-22: driver documents — F.I.Sh prefilled from the profile, passport required
+    await expect(page.getByRole("heading", { name: "Haydovchi hujjatlari" })).toBeVisible();
+    await expect(page.getByPlaceholder("Familiya Ism Sharif")).toHaveValue(customer.fullName);
+    // no payment method is preselected
+    await expect(page.getByRole("button", { name: "To'lash" })).toBeDisabled();
     await page.getByRole("button", { name: "Naqd" }).click();
+    await page.getByRole("button", { name: "To'lash" }).click();
+    await expect(page.getByText("Pasport seriyasi va raqamini kiriting")).toBeVisible();
+    await expect(page).toHaveURL(/\/order\/create$/);
+    await page.getByPlaceholder("AA 1234567").fill("aa1234567");
+
     const create = page.waitForResponse((r) => r.url().includes("/user/create-order/"));
     await page.getByRole("button", { name: "To'lash" }).click();
     const createResp = await create;
@@ -130,7 +159,7 @@ test.describe("customer: booking and own orders", () => {
     const orderId = (await createResp.json())?.data?.id;
     await expect(page).toHaveURL(new RegExp(`/order/${orderId}$`));
     await expect(page.getByText("Kutilmoqda").first()).toBeVisible();
-    await expect(page.getByText(moneyRe(price * days)).first()).toBeVisible();
+    await expect(page.getByText(moneyRe(payable)).first()).toBeVisible();
 
     // backend state
     const api = await Api.as(customer.access);
@@ -139,7 +168,10 @@ test.describe("customer: booking and own orders", () => {
     expect(order.status).toBe("pending");
     expect(order.car).toBe(car.id);
     expect(order.payment_system).toBe("cash");
-    expect(Number(order.cost)).toBe(price * days);
+    expect(Number(order.cost)).toBe(payable);
+    const staffView = await getOrderApi(orderId);
+    expect(staffView.renter_full_name).toBe(customer.fullName);
+    expect(staffView.renter_passport_no).toBe("AA 1234567");
 
     // My orders
     await page.goto("/pages/orders");

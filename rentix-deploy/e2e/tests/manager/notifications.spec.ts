@@ -3,12 +3,11 @@ import { managerTest as test, expect } from "../support/fixtures";
 import {
   Api,
   createCarApi,
-  createManualNotificationLocal,
   createOrderAsCustomer,
   registerCustomerApi,
   uniqueSuffix,
 } from "../support/api";
-import { chooseAntdOption, tapBehindTabbar } from "../support/ui";
+import { chooseAntdOption, tapBehindTabbar, toast } from "../support/ui";
 
 const anyNotificationCard = (page: Page, text: string) => page.locator('[class*="_paper_"]').filter({ hasText: text });
 const notificationCard = (page: Page, text: string) =>
@@ -21,11 +20,13 @@ const createNotificationViaUI = async (page: Page, customerName: string, title: 
   await page.getByRole("heading", { name: "Notifications" }).locator("xpath=following-sibling::button[1]").click();
   await expect(page).toHaveURL(/\/manager\/notifications\/create$/);
   await chooseAntdOption(page, page.locator(".ant-form-item").filter({ hasText: "Customer" }).locator(".ant-select"), customerName);
-  await page.locator(".ant-form-item").filter({ hasText: "Title" }).locator("input").fill(title);
-  await page.locator(".ant-form-item").filter({ hasText: "Message" }).locator("textarea").fill(message);
+  // N-03: UZ/RU/EN tabs; UZ is required, the others fall back to it
+  await page.locator(".ant-form-item").filter({ hasText: "Title (UZ)" }).locator("input").fill(title);
+  await page.locator(".ant-form-item").filter({ hasText: "Message (UZ)" }).locator("textarea").fill(message);
   const post = page.waitForResponse((r) => r.url().endsWith("/user/notifications/") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Submit" }).click();
-  expect((await post).status()).toBeLessThan(300);
+  expect((await post).status()).toBe(201);
+  await expect(toast(page, "Sent")).toBeVisible();
   await expect(page).toHaveURL(/\/manager\/notifications$/);
 };
 
@@ -37,14 +38,8 @@ test.describe("manager notifications CRUD", () => {
     const title = `E2E xabar ${uniqueSuffix()}`;
     await createNotificationViaUI(page, customer.fullName, title, "Salom! Bu test xabari.");
 
-    // BUG: the form "succeeds" and returns to the list, but nothing is created.
-    // NotificationViewSet.perform_create raises PermissionDenied for admin/manager
-    // ("Bildirishnoma yaratib bo'lmaydi"), and because views.py imports the
-    // Payme-style user.exceptions.PermissionDenied (status_code = 200) the API
-    // answers HTTP 200, so the frontend shows no error either.
-    // rentix-backend/user/views.py:76 + NotificationViewSet.perform_create; user/exceptions.py
-    test.fail();
-    await expect(notificationCard(page, title)).toHaveCount(1, { timeout: 5_000 });
+    // N-03/N-13 fixed: managers can send notifications to their customers.
+    await expect(notificationCard(page, title)).toHaveCount(1);
     const asCustomer = await Api.as(customer.access);
     const mine = await asCustomer.get("/user/notifications/");
     await asCustomer.dispose();
@@ -60,12 +55,15 @@ test.describe("manager notifications CRUD", () => {
     return `Yangi onlayn buyurtma №${order.id}`;
   };
 
-  /** Managers cannot create notifications yet (see above), so a manual one is seeded in the DB. */
+  /** A manual notification sent by the manager through the API (POST /user/notifications/). */
   const manualNotification = async () => {
     const customer = await registerCustomerApi();
     await createOrderAsCustomer(customer, (await createCarApi()).id);
     const title = `E2E qo'lda ${uniqueSuffix()}`;
-    createManualNotificationLocal(customer.id, title);
+    const api = await Api.staff("manager");
+    const res = await api.post("/user/notifications/", { user: customer.id, title_uz: title, message_uz: "E2E manual xabar" });
+    await api.dispose();
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
     return { customer, title };
   };
 

@@ -1,5 +1,5 @@
 import { customerTest as test, expect, fillCustomerPhone, registerCustomerViaUI, seedCustomerSession } from "../support/fixtures";
-import { Api, registerCustomerApi, uniquePhone, uniqueSuffix } from "../support/api";
+import { Api, displayPhone, registerCustomerApi, uniquePhone, uniqueSuffix } from "../support/api";
 
 // Registered up-front so the backend's 1-minute OTP re-send window has passed
 // by the time the "returning customer" test (last in this file) runs.
@@ -18,7 +18,7 @@ test.describe("customer app: phone + OTP login", () => {
 
     // Logged in: profile header shows the customer
     await expect(page.getByRole("heading", { name })).toBeVisible();
-    await expect(page.locator(".profile-top__content-phone-number")).toHaveText(phone);
+    await expect(page.locator(".profile-top__content-phone-number")).toHaveText(displayPhone(phone));
     await expect(page.getByText("Mening keshbeklarim")).toBeVisible();
     await expect(page.getByText("Akkauntdan chiqish")).toBeVisible();
   });

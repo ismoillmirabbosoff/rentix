@@ -62,8 +62,8 @@ test.describe("manager cannot reach admin-only features", () => {
     expect(res.body?.status).toBe(403);
     // BUG: many endpoints answer "forbidden" with HTTP 200 and {"status": 403} in
     // the body (and views.py's PermissionDenied is the Payme one, status_code=200),
-    // so axios treats refusals as success — e.g. the manager notification form
-    // reports success while nothing is saved.
+    // so axios treats refusals as success. (Round 2 moved order set-status and
+    // notifications to real 4xx codes; the manager endpoints below still answer 200.)
     // rentix-backend/user/views.py (GetAllManagerView, CreateManagerView, ManagerCRUDView, …; import at line 76)
     test.fail();
     expect(res.status).toBe(403);
