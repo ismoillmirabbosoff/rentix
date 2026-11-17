@@ -225,6 +225,13 @@ bootstrap() {
     | grep -v "httpx" | sed 's/^/    /'
 }
 
+configure_manager_bot() {
+  # N-38: menejer boti webhook + buyruqlar. Token bo'sh bo'lsa o'zi o'tkazib
+  # yuboradi; xato deployni to'xtatmaydi.
+  dc exec -T backend python manage.py configure_manager_bot 2>&1 | sed 's/^/    /' \
+    || warn "Menejer boti sozlanmadi (deploy davom etadi)"
+}
+
 server_ip() { curl -s -4 -m 8 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}'; }
 
 # ───────────────────────────────────────────────────────────────── buyruqlar
@@ -260,6 +267,7 @@ cmd_install() {
 
   head_ "4/4  Admin + menejer (demo ma'lumotsiz)"
   bootstrap
+  configure_manager_bot
 
   cmd_status
   show_credentials
@@ -283,6 +291,8 @@ cmd_update() {
   head_ "Qayta ishga tushirish"
   dc up -d --remove-orphans
   wait_healthy rentix-backend 90
+  # migratsiyalar backend ishga tushishida bajariladi (Dockerfile CMD)
+  configure_manager_bot
   bootstrap
   docker image prune -f >/dev/null 2>&1 || true
   cmd_status
