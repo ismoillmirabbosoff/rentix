@@ -8,7 +8,7 @@ const openCompanyInfo = async (page: Page) => {
   await expect(page).toHaveURL(/\/admin\/company-info$/);
   await expect(page.getByLabel("Company name")).not.toHaveValue("", { timeout: 15_000 });
   // The seeded "Default filial" has no address; the form requires one.
-  const firstAddress = page.getByLabel("Branch address").first();
+  const firstAddress = page.getByLabel("Branch address (UZ)").first();
   if (!(await firstAddress.inputValue())) await firstAddress.fill("Toshkent, Amir Temur 1");
 };
 
@@ -60,7 +60,10 @@ test.describe("admin company information", () => {
       await openCompanyInfo(page);
       await page.locator('[class*="branch__plus"]').click();
       await page.getByLabel("Branch name").last().fill(name);
-      await page.getByLabel("Branch address").last().fill("Toshkent, Yunusobod 7");
+      await page.getByLabel("Branch address (UZ)").last().fill("Toshkent, Yunusobod 7");
+      // Y-10: the address is entered per language
+      await page.getByLabel("Branch address (RU)").last().fill("Ташкент, Юнусабад 7");
+      await page.getByLabel("Branch address (EN)").last().fill("7 Yunusabad, Tashkent");
       const ph = page.getByLabel("Phone number").last();
       await ph.pressSequentially("935554433");
 
@@ -80,6 +83,10 @@ test.describe("admin company information", () => {
       const created = (await filials()).find((f) => f.name === name);
       expect(created, "new branch saved").toBeTruthy();
       createdId = created!.id;
+      const createdAddress = created as unknown as { address: string; address_ru: string; address_en: string };
+      expect(createdAddress.address).toBe("Toshkent, Yunusobod 7");
+      expect(createdAddress.address_ru).toBe("Ташкент, Юнусабад 7");
+      expect(createdAddress.address_en).toBe("7 Yunusabad, Tashkent");
       expect(created!.is_24_7).toBe(false);
       const sun = created!.workdays.find((w) => w.weekday === 6);
       expect(sun?.is_working).toBe(false);

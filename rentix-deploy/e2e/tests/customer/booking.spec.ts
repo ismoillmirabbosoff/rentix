@@ -181,11 +181,18 @@ test.describe("customer: booking and own orders", () => {
 
     await page.goto(`/order/${orderId}`);
     await page.getByRole("button", { name: "Bekor qilish" }).click();
-    await expect(page.getByText("Buyurtmani bekor qilish")).toBeVisible();
+    const sheet = page.getByTestId("cancel-order-sheet");
+    await expect(sheet.getByText("Buyurtmani bekor qilish")).toBeVisible();
+    // R-42 (customer): a reason is required before cancelling
+    await expect(sheet.getByRole("button", { name: "Ha, bekor qilish" })).toBeDisabled();
+    await sheet.getByRole("button", { name: "Rejalarim o'zgardi" }).click();
     const cancel = page.waitForResponse((r) => r.url().includes(`/user/order/${orderId}/set-status/`));
-    await page.getByRole("button", { name: "Bekor qilish" }).last().click();
+    await sheet.getByRole("button", { name: "Ha, bekor qilish" }).click();
     expect((await cancel).status()).toBeLessThan(300);
     await expect(page.getByText("Bekor qilingan").first()).toBeVisible();
+    const cancelled = await getOrderApi(orderId);
+    expect(cancelled.cancel_reason).toBe("Rejalarim o'zgardi");
+    expect(cancelled.cancelled_by).toBe("customer");
 
     await page.goto("/pages/orders");
     await page.getByRole("button", { name: "Buyurtmalar tarixi" }).click();

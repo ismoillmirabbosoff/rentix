@@ -75,6 +75,9 @@ test.describe("admin cars", () => {
     await page.locator("#car-form-cost_hour_tash").fill("30000");
     await page.locator("#car-form-depozit").fill("1500000");
     await page.locator("#car-form-commit").fill("E2E test car");
+    // Y-09: description per language
+    await page.locator("#car-form-commit_ru").fill("E2E тестовая машина");
+    await page.locator("#car-form-commit_en").fill("E2E test car EN");
 
     const created = page.waitForResponse((r) => r.url().includes("/user/create-car/") && r.request().method() === "POST");
     const imageUpload = page.waitForResponse((r) => r.url().endsWith("/user/car-images/") && r.request().method() === "POST");
@@ -96,6 +99,11 @@ test.describe("admin cars", () => {
     expect(car.car_number).toBe(`01${plate}`);
     expect(Number(car.cost_day_tash)).toBe(450000);
     expect(car.car_images?.length ?? 0).toBe(1);
+    expect([car.commit, car.commit_ru, car.commit_en]).toEqual([
+      "E2E test car",
+      "E2E тестовая машина",
+      "E2E test car EN",
+    ]);
   });
 
   test("form validation blocks submitting an empty car", async ({ page }) => {

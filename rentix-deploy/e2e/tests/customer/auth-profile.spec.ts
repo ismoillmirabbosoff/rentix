@@ -103,7 +103,7 @@ test.describe("customer profile", () => {
     await page.getByText("Mening keshbeklarim").click();
     await expect(page).toHaveURL(/\/pages\/profile\/cashback$/);
     await expect(page.getByRole("heading", { name: "Mening keshbeklarim" })).toBeVisible();
-    await expect(page.getByText("Hozircha keshbek yo‘q")).toBeVisible();
+    await expect(page.getByText("Hozircha keshbek yo'q")).toBeVisible();
 
     await page.goto("/pages/profile");
     await page.getByText("Jarimalar").click();
