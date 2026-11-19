@@ -94,6 +94,20 @@ export const forceOrderStatusLocal = (
   execSync(`docker exec rentix-backend python manage.py shell -c ${JSON.stringify(py)}`, { stdio: "ignore" });
 };
 
+/**
+ * Y-02: moves an order's rental window relative to "now" (hours; negative = in
+ * the past), e.g. an overdue rental: start -26h, end -2h. Local stack only.
+ */
+export const setOrderTimesLocal = (orderId: number, startHours: number, endHours: number) => {
+  if (!IS_LOCAL) throw new Error("setOrderTimesLocal needs the local docker stack");
+  const py =
+    "from datetime import timedelta; from django.utils import timezone; from user.models import Order; " +
+    "now = timezone.now(); " +
+    `Order.objects.filter(id=${Number(orderId)}).update(` +
+    `start_time=now + timedelta(hours=${Number(startHours)}), end_time=now + timedelta(hours=${Number(endHours)}))`;
+  execSync(`docker exec rentix-backend python manage.py shell -c ${JSON.stringify(py)}`, { stdio: "ignore" });
+};
+
 /** 1x1 PNG used for every upload. */
 export const PNG_1PX = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",

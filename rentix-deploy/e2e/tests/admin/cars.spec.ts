@@ -129,6 +129,40 @@ test.describe("admin cars", () => {
     expect(updated.car_images?.length ?? 0).toBe(1);
   });
 
+  test("N-30: leaving the edit form with unsaved changes asks in an app modal", async ({ page }) => {
+    const car = await createCarApi();
+    await page.goto("/admin/cars");
+    await searchCars(page, car.plate.slice(2));
+    await carCard(page, car.plate.slice(3, 6)).getByRole("button", { name: /^Edit/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/cars/${car.id}$`));
+    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue("300 000");
+    const back = page.getByRole("button", { name: "arrow left icon" }).first();
+
+    // no changes: back just leaves
+    await back.click();
+    await expect(page).toHaveURL(/\/admin\/cars$/);
+
+    await searchCars(page, car.plate.slice(2));
+    await carCard(page, car.plate.slice(3, 6)).getByRole("button", { name: /^Edit/ }).click();
+    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue("300 000");
+    await page.locator("#car-form-cost_day_tash").fill("355000");
+    let browserDialog = false;
+    page.on("dialog", (d) => {
+      browserDialog = true;
+      void d.dismiss();
+    });
+    await back.click();
+    await expect(page.getByText("Unsaved changes", { exact: true }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Stay" }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/cars/${car.id}$`));
+    await expect(page.locator("#car-form-cost_day_tash")).toHaveValue(/355/);
+    await back.click();
+    await page.getByRole("button", { name: "Leave" }).click();
+    await expect(page).toHaveURL(/\/admin\/cars$/);
+    expect(browserDialog).toBe(false);
+    expect(Number((await getCar(car.id)).cost_day_tash)).toBe(300000);
+  });
+
   test("car list search filters by plate", async ({ page }) => {
     const a = await createCarApi();
     const b = await createCarApi({ model: "2" });

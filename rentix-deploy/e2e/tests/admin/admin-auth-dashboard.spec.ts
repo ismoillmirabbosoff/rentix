@@ -58,7 +58,7 @@ adminTest.describe("admin dashboard", () => {
     const orderList: Array<{ status: string }> = Array.isArray(orders.body)
       ? orders.body
       : orders.body?.orders ?? orders.body?.results ?? orders.body?.data ?? [];
-    const carList: Array<{ status: string }> = cars.body?.cars ?? [];
+    const carList: Array<{ status: string; current_order?: unknown }> = cars.body?.cars ?? [];
 
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/admin\/statistics$/);
@@ -72,7 +72,8 @@ adminTest.describe("admin dashboard", () => {
     await expect(card("Cancelled")).toContainText(byStatus("cancelled", "rejected"));
     await expect(card("Total cars")).toContainText(String(carList.length));
     await expect(card("Available cars")).toContainText(
-      String(carList.filter((c) => c.status === "available").length),
+      // Y-04: free = "available" and not held by a current rental
+      String(carList.filter((c) => c.status === "available" && !c.current_order).length),
     );
 
     // Tab bar navigation

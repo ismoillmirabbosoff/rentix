@@ -70,7 +70,8 @@ test.describe("manager notifications CRUD", () => {
   test("system notifications are read-only (no Edit / Delete)", async ({ page }) => {
     // R-33: notifications generated for order events can't be edited or deleted
     const generatedTitle = await generatedNotification();
-    await page.goto("/manager/notifications");
+    // Y-01: order events live in the "System" tab ("Sent" = broadcast history)
+    await page.goto("/manager/notifications?tab=system");
     const card = anyNotificationCard(page, generatedTitle);
     await expect(card).toHaveCount(1);
     await expect(card.getByRole("button", { name: /Edit/ })).toHaveCount(0);
