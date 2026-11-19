@@ -4,6 +4,7 @@ import {
   Api,
   createCarApi,
   createOrderAsCustomer,
+  forceOrderStatusLocal,
   getOrderApi,
   pngFile,
   rand,
@@ -163,6 +164,44 @@ test.describe("manager order status flow", () => {
 
     await openActiveSubTab(page, "Completed");
     await expect(orderCard(page, customer.fullName)).toHaveCount(1);
+  });
+});
+
+test.describe("XATO-134: handover errors and orders stuck without a handover record", () => {
+  test("handover: the server's 400 detail is shown to the manager", async ({ page }) => {
+    const customer = await registerCustomerApi();
+    const car = await createCarApi();
+    const order = await createOrderAsCustomer(customer, car.id); // pending — not confirmed
+
+    await page.goto(`/manager/orders/${order.id}/handover`);
+    await uploadFourSides(page);
+    const create = page.waitForResponse((r) => r.url().endsWith("/user/checkings/") && r.request().method() === "POST");
+    await page.getByRole("button", { name: "Mashinani topshirish" }).click();
+    expect((await create).status()).toBe(400);
+    await expect(page.getByTestId("handover-submit-error")).toContainText("Buyurtma tasdiqlanmagan");
+    await expect(toast(page, "Buyurtma tasdiqlanmagan")).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/handover$`));
+    expect((await getOrderApi(order.id)).status).toBe("pending");
+  });
+
+  test("in-progress order without a handover record is completed from the return page", async ({ page }) => {
+    const customer = await registerCustomerApi();
+    const car = await createCarApi();
+    const order = await createOrderAsCustomer(customer, car.id);
+    await setOrderStatusApi(order.id, "confirmed");
+    forceOrderStatusLocal(order.id, "in_progress", { withHandover: false });
+
+    await page.goto(`/manager/orders/${order.id}/return`);
+    await expect(page.getByTestId("return-no-handover-notice")).toContainText("No handover was recorded");
+    const accept = page.getByRole("button", { name: "Mashinani qabul qilish" });
+    await expect(accept).toBeEnabled();
+    // return photos are still required
+    await accept.click();
+    await expect(page.getByText("Rasm yuklash majburiy").first()).toBeVisible();
+    await uploadFourSides(page);
+    await accept.click();
+    await expect(toast(page, "Mashina muvaffaqiyatli qabul qilindi")).toBeVisible();
+    await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("completed");
   });
 });
 

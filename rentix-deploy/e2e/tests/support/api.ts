@@ -73,12 +73,24 @@ export const deleteFilialLocal = (id: number) => {
 /**
  * Moves an order straight to the given status in the DB (e.g. "in_progress" to
  * make its car busy right now without the handover UI). Local stack only.
+ * XATO-134: "in_progress" also gets a handover (ChekInOut) record, like the real
+ * handover flow; `withHandover: false` reproduces the legacy broken state.
  */
-export const forceOrderStatusLocal = (orderId: number, status: string) => {
+export const forceOrderStatusLocal = (
+  orderId: number,
+  status: string,
+  { withHandover = true }: { withHandover?: boolean } = {},
+) => {
   if (!IS_LOCAL) throw new Error("forceOrderStatusLocal needs the local docker stack");
+  const id = Number(orderId);
+  const st = JSON.stringify(status);
   const py =
-    "from user.models import Order; " +
-    `Order.objects.filter(id=${Number(orderId)}).update(status=${JSON.stringify(status)})`;
+    "from user.models import ChekInOut, Manager, Order; " +
+    `o = Order.objects.get(id=${id}); ` +
+    `Order.objects.filter(id=${id}).update(status=${st}); ` +
+    "m = o.manager or Manager.objects.filter(company_id=o.company_id).order_by('id').first(); " +
+    `(${st} == 'in_progress' and ${withHandover ? "True" : "False"} and not o.checkinouts.exists()) and ` +
+    "ChekInOut.objects.create(order=o, user=o.user, company=o.company, manager=m, car=o.car)";
   execSync(`docker exec rentix-backend python manage.py shell -c ${JSON.stringify(py)}`, { stdio: "ignore" });
 };
 
