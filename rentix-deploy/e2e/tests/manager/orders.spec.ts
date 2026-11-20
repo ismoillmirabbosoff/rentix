@@ -37,10 +37,21 @@ const fillRenterForm = async (page: Page, renter: { name: string; phone9: string
   await page.getByRole("button", { name: "Davom etish" }).click();
 };
 
-const uploadFourSides = async (page: Page) => {
+/** N-37: hand-over and return take the same 5 photos — front, 2 sides, back, interior. */
+const uploadCarPhotos = async (page: Page) => {
   const inputs = page.locator('input[type="file"]');
   await expect(inputs).toHaveCount(4);
-  for (let i = 0; i < 4; i++) await inputs.nth(i).setInputFiles(pngFile(`side-${i}.png`));
+  await inputs.nth(0).setInputFiles(pngFile("front.png"));
+  await inputs.nth(1).setInputFiles([pngFile("side-left.png"), pngFile("side-right.png")]);
+  await inputs.nth(2).setInputFiles(pngFile("back.png"));
+  await inputs.nth(3).setInputFiles(pngFile("interior.png"));
+};
+
+/** N-37: required return fields — mileage, fuel level and the deposit refund method. */
+const fillReturnForm = async (page: Page, mileage = "15000") => {
+  await page.getByLabel(/^Mileage at return/).fill(mileage);
+  await page.getByTestId("return-fuel").getByText("Full").click();
+  await page.getByRole("radio", { name: "Cash" }).check();
 };
 
 test.describe("manager order status flow", () => {
@@ -143,11 +154,11 @@ test.describe("manager order status flow", () => {
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/handover$`));
 
     // Handover photos
-    await page.getByRole("button", { name: "Mashinani topshirish" }).click();
-    await expect(page.getByText("Rasm yuklash majburiy").first()).toBeVisible();
-    await uploadFourSides(page);
-    await page.getByRole("button", { name: "Mashinani topshirish" }).click();
-    await expect(toast(page, "Mashina muvaffaqiyatli topshirildi")).toBeVisible();
+    await page.getByRole("button", { name: "Hand over the car", exact: true }).click();
+    await expect(page.getByText("Photo upload is required").first()).toBeVisible();
+    await uploadCarPhotos(page);
+    await page.getByRole("button", { name: "Hand over the car", exact: true }).click();
+    await expect(toast(page, "The car has been handed over")).toBeVisible();
     await expect(page).toHaveURL(/\/manager\/orders/);
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("in_progress");
     const afterHandover = await getOrderApi(order.id);
@@ -157,9 +168,10 @@ test.describe("manager order status flow", () => {
     await openActiveSubTab(page, "In progress");
     await orderCard(page, customer.fullName).getByRole("button", { name: /Complete order/ }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/return$`));
-    await uploadFourSides(page);
-    await page.getByRole("button", { name: "Mashinani qabul qilish" }).click();
-    await expect(toast(page, "Mashina muvaffaqiyatli qabul qilindi")).toBeVisible();
+    await uploadCarPhotos(page);
+    await fillReturnForm(page);
+    await page.getByRole("button", { name: "Accept the car" }).click();
+    await expect(toast(page, "The car has been accepted")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("completed");
 
     await openActiveSubTab(page, "Completed");
@@ -174,9 +186,9 @@ test.describe("XATO-134: handover errors and orders stuck without a handover rec
     const order = await createOrderAsCustomer(customer, car.id); // pending — not confirmed
 
     await page.goto(`/manager/orders/${order.id}/handover`);
-    await uploadFourSides(page);
+    await uploadCarPhotos(page);
     const create = page.waitForResponse((r) => r.url().endsWith("/user/checkings/") && r.request().method() === "POST");
-    await page.getByRole("button", { name: "Mashinani topshirish" }).click();
+    await page.getByRole("button", { name: "Hand over the car", exact: true }).click();
     expect((await create).status()).toBe(400);
     await expect(page.getByTestId("handover-submit-error")).toContainText("Buyurtma tasdiqlanmagan");
     await expect(toast(page, "Buyurtma tasdiqlanmagan")).toBeVisible();
@@ -193,14 +205,15 @@ test.describe("XATO-134: handover errors and orders stuck without a handover rec
 
     await page.goto(`/manager/orders/${order.id}/return`);
     await expect(page.getByTestId("return-no-handover-notice")).toContainText("No handover was recorded");
-    const accept = page.getByRole("button", { name: "Mashinani qabul qilish" });
+    const accept = page.getByRole("button", { name: "Accept the car" });
     await expect(accept).toBeEnabled();
     // return photos are still required
     await accept.click();
-    await expect(page.getByText("Rasm yuklash majburiy").first()).toBeVisible();
-    await uploadFourSides(page);
+    await expect(page.getByText("Photo upload is required").first()).toBeVisible();
+    await uploadCarPhotos(page);
+    await fillReturnForm(page);
     await accept.click();
-    await expect(toast(page, "Mashina muvaffaqiyatli qabul qilindi")).toBeVisible();
+    await expect(toast(page, "The car has been accepted")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toBe("completed");
   });
 });
