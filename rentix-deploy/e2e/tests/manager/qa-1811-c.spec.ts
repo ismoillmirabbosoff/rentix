@@ -172,7 +172,10 @@ test.describe("QA 18.11 part C: return form (N-37)", () => {
     await page.getByLabel("Reason", { exact: true }).fill("Bumper repair");
     await page.getByLabel("Amount", { exact: true }).fill("150000");
     // refund = deposit − fines, editable
-    await expect(page.getByLabel(/^Deposit refund/)).toHaveValue(String(CAR_DEPOSIT - 150000));
+    // QA 22.11 #12: thousands separator ("850 000")
+    await expect(page.getByLabel(/^Deposit refund/)).toHaveValue(
+      (CAR_DEPOSIT - 150000).toLocaleString("en-US").replace(/,/g, " "),
+    );
     await submit.click();
     await expect(page.getByText("Select the deposit refund method.")).toBeVisible();
     await page.getByRole("radio", { name: "Cash" }).check();

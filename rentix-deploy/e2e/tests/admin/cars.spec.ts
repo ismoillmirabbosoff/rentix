@@ -90,7 +90,11 @@ test.describe("admin cars", () => {
 
     await searchCars(page, plate);
     const card = carCard(page, plate.slice(1, 4));
-    await expect(card).toHaveCount(1);
+    // GET /user/cars/ returns every car (500+ in the e2e DB, 3–8 s under load).
+    // The list request started on the first visit could still be running when
+    // the car was saved; the app now refetches it after saving, so allow for
+    // one slow list response here.
+    await expect(card).toHaveCount(1, { timeout: 30_000 });
     await expect(card).toContainText("Chevrolet Malibu");
 
     // Backend state
