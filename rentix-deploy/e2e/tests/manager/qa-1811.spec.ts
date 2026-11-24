@@ -56,8 +56,13 @@ test.describe("QA 18.11: broadcast and overdue rental", () => {
     const title = `E2E rassilka ${uniqueSuffix()}`;
     await page.locator(".ant-form-item").filter({ hasText: "Title (UZ)" }).locator("input").fill(title);
     await page.locator(".ant-form-item").filter({ hasText: "Message (UZ)" }).locator("textarea").fill("Salom!");
-    const post = page.waitForResponse((r) => r.url().endsWith("/user/notifications/") && r.request().method() === "POST");
     await page.getByRole("button", { name: "Submit" }).click();
+    // QA 22.11 #2: sending to several customers asks for confirmation first
+    const modal = page.getByRole("dialog").filter({ hasText: "Confirm sending" });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByTestId("confirm-count")).toHaveText("The message will be sent to 2 customers.");
+    const post = page.waitForResponse((r) => r.url().endsWith("/user/notifications/") && r.request().method() === "POST");
+    await modal.getByRole("button", { name: "Yes, send" }).click();
     expect((await post).status()).toBe(201);
     await expect(toast(page, "Sent")).toBeVisible();
 
