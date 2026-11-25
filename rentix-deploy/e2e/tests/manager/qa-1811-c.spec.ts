@@ -137,6 +137,8 @@ test.describe("QA 18.11 part C: return form (N-37)", () => {
     await page.goto(`/manager/orders/${order.id}/handover`);
     await uploadCarPhotos(page);
     await page.getByLabel("Mileage (km)", { exact: true }).fill("12000");
+    // QA 24.11/25.11 #12: mileage shows the thousands separator
+    await expect(page.getByLabel("Mileage (km)", { exact: true })).toHaveValue("12 000");
     await page.getByTestId("handover-fuel").getByText("Full").click();
     await page.getByRole("button", { name: "Hand over the car", exact: true }).click();
     await expect(toast(page, "The car has been handed over")).toBeVisible();
@@ -145,7 +147,7 @@ test.describe("QA 18.11 part C: return form (N-37)", () => {
     // Return
     await page.goto(`/manager/orders/${order.id}/return`);
     await expect(page.getByTestId("return-early-notice")).toBeVisible(); // return time is in 3 days
-    await expect(page.getByTestId("return-handover-mileage")).toContainText("At hand-over: 12000 km");
+    await expect(page.getByTestId("return-handover-mileage")).toContainText("At hand-over: 12 000 km");
     const submit = page.getByTestId("return-submit");
     await submit.click();
     await expect(page.getByText("Photo upload is required").first()).toBeVisible();
@@ -162,8 +164,9 @@ test.describe("QA 18.11 part C: return form (N-37)", () => {
 
     await page.getByLabel(/^Mileage at return/).fill("11000");
     await submit.click();
-    await expect(page.getByText("Mileage cannot be lower than at hand-over (12000 km).")).toBeVisible();
+    await expect(page.getByText("Mileage cannot be lower than at hand-over (12 000 km).")).toBeVisible();
     await page.getByLabel(/^Mileage at return/).fill("12350");
+    await expect(page.getByLabel(/^Mileage at return/)).toHaveValue("12 350");
     await expect(page.getByTestId("return-handover-mileage")).toContainText("Distance driven: 350 km");
     await page.getByTestId("return-fuel").getByText("3/4").click();
     await page.getByLabel("Damage and notes").fill("Scratch on the rear bumper");
