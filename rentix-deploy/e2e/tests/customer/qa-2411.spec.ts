@@ -64,8 +64,8 @@ test.describe("QA 24.11: customer app", () => {
       });
       expect(colors).toContain("linear-gradient");
 
-      // fixed bottom menu stays inside the column
-      const tab = page.locator('[class*="_tab_"]').first();
+      // fixed bottom menu content stays inside the column (Y14: background is full width)
+      const tab = page.getByTestId("app-bottom-nav-inner");
       await expect(tab).toBeVisible();
       const tabBox = await tab.boundingBox();
       expect(tabBox!.width).toBeLessThanOrEqual(480);

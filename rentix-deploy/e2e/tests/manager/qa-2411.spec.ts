@@ -146,9 +146,9 @@ test.describe("QA 24.11: manager panel", () => {
       const viewport = page.viewportSize()!;
       expect(Math.abs(root!.x - (viewport.width - root!.width) / 2)).toBeLessThan(12);
 
-      // Fixed bottom menu (tab bar) of the dashboard stays in the column
+      // Fixed bottom menu (tab bar): content stays in the column (Y14: background is full width)
       await page.goto("/manager/dashboard");
-      const tab = page.locator('[class*="_tab_"]').first();
+      const tab = page.getByTestId("app-bottom-nav-inner");
       await expect(tab).toBeVisible();
       const tabBox = await tab.boundingBox();
       expect(tabBox!.width).toBeLessThanOrEqual(768);

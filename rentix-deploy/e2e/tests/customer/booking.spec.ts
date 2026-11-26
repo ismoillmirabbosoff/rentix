@@ -191,7 +191,8 @@ test.describe("customer: booking and own orders", () => {
     expect((await cancel).status()).toBeLessThan(300);
     await expect(page.getByText("Bekor qilingan").first()).toBeVisible();
     const cancelled = await getOrderApi(orderId);
-    expect(cancelled.cancel_reason).toBe("Rejalarim o'zgardi");
+    // QA 26.11 Y1: preset reason is stored as a code
+    expect(cancelled.cancel_reason).toBe("plans_changed");
     expect(cancelled.cancelled_by).toBe("customer");
 
     await page.goto("/pages/orders");

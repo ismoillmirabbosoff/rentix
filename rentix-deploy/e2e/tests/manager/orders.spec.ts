@@ -97,9 +97,13 @@ test.describe("manager order status flow", () => {
     await expect(page.getByText("Select a reason")).toBeVisible();
     await page.getByRole("radio", { name: "Customer request" }).check();
     await page.getByRole("button", { name: "Yes, reject" }).click();
-    await expect(toast(page, "Order cancelled")).toBeVisible();
+    // QA 26.11 Y3: separate "rejected" toast
+    await expect(toast(page, "Order rejected")).toBeVisible();
     await expect.poll(async () => (await getOrderApi(order.id)).status).toMatch(/rejected|cancelled/);
-    expect((await getOrderApi(order.id)).cancel_reason).toBe("Customer request");
+    // QA 26.11 Y1: preset reasons are stored as codes and shown in the reader's language
+    const rejected = await getOrderApi(order.id);
+    expect(rejected.cancel_reason).toBe("client_request");
+    expect(rejected.cancel_reason_code).toBe("client_request");
 
     await openActiveSubTab(page, "Cancelled");
     await expect(orderCard(page, customer.fullName)).toHaveCount(1);
