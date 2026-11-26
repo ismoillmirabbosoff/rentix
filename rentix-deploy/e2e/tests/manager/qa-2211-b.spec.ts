@@ -172,7 +172,7 @@ test.describe("QA 22.11 part 2: manager panel", () => {
 
     await page.goto(`/manager/orders/${order.id}`);
     await tapBehindTabbar(page, page.getByRole("button", { name: "Hand over the car", exact: true }));
-    await expect(page.getByText("Doimiy mijoz ma'lumotlari")).toBeVisible();
+    await expect(page.getByText("Regular customer details")).toBeVisible();
     await expect(page.getByText(displayPhone(customer.phone), { exact: true }).last()).toBeVisible();
     await expect(page.getByText(customer.phone, { exact: true })).toHaveCount(0);
   });

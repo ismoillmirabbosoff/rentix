@@ -91,7 +91,7 @@ test.describe("QA 24.11: manager panel", () => {
     }
     await page.getByRole("radio", { name: "Customer request" }).check();
     await page.getByRole("button", { name: "Yes, cancel" }).click();
-    await expect(toast(page, "'cancelled' dan 'cancelled' ga o'tish mumkin emas")).toBeVisible();
+    await expect(toast(page, 'The order status cannot be changed from "Cancelled" to "Cancelled"')).toBeVisible();
   });
 
   test("N8: cashback spent on a cancelled order is refunded", async ({ page }) => {

@@ -71,7 +71,7 @@ test("customer registers and books → manager sees customer + order → confirm
 
   /* ── customer sees the new status ── */
   await page.reload();
-  await expect(page.getByText("Tasdiqlandi").first()).toBeVisible();
+  await expect(page.getByText("Tasdiqlangan").first()).toBeVisible();
   await page.goto("/pages/orders");
-  await expect(page.locator("article").filter({ hasText: "Tasdiqlandi" }).first()).toBeVisible();
+  await expect(page.locator("article").filter({ hasText: "Tasdiqlangan" }).first()).toBeVisible();
 });

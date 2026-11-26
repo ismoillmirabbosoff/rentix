@@ -4,7 +4,7 @@ import { Api, createCarApi, createOrderAsCustomer, forceOrderStatusLocal, regist
 import { creds } from "../support/env";
 
 const carCards = (page: Page) =>
-  page.locator('[class*="_paper_"]').filter({ has: page.getByRole("button", { name: "Complete car setup" }) });
+  page.locator('[class*="_paper_"]').filter({ has: page.getByRole("button", { name: "Book this car" }) });
 
 base("manager can log out from the More tab", async ({ page }) => {
   const { login, password } = creds.manager();

@@ -25,16 +25,16 @@ const openActiveSubTab = async (page: Page, sub: "Confirmed" | "In progress" | "
 
 /** Step 1/3 — renter data form. */
 const fillRenterForm = async (page: Page, renter: { name: string; phone9: string; passport: string }) => {
-  await expect(page.getByRole("heading", { name: "Rasmiylashtirish" })).toBeVisible();
-  await page.getByLabel(/^F\.I\.Sh/).fill(renter.name);
-  const phone = page.getByLabel(/^Telefon raqam/);
+  await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+  await page.getByLabel(/^Full name/).fill(renter.name);
+  const phone = page.getByLabel(/^Phone/);
   await phone.click();
   await phone.pressSequentially(renter.phone9);
-  await page.getByLabel(/^Pasport yoki ID karta raqami/).pressSequentially(renter.passport);
-  await page.getByLabel(/^Doimiy ro'yxatga olingan joyi/).fill("Toshkent sh., Chilonzor 1");
-  await page.getByLabel(/^Yashash joyi/).fill("Toshkent sh., Yunusobod 2");
+  await page.getByLabel(/^Passport or ID number/).pressSequentially(renter.passport);
+  await page.getByLabel(/^Registered address/).fill("Toshkent sh., Chilonzor 1");
+  await page.getByLabel(/^Current address/).fill("Toshkent sh., Yunusobod 2");
   await page.locator('input[type="file"]').setInputFiles(pngFile("passport.png"));
-  await page.getByRole("button", { name: "Davom etish" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
 };
 
 /** N-37: hand-over and return take the same 5 photos — front, 2 sides, back, interior. */
@@ -190,8 +190,8 @@ test.describe("XATO-134: handover errors and orders stuck without a handover rec
     const create = page.waitForResponse((r) => r.url().endsWith("/user/checkings/") && r.request().method() === "POST");
     await page.getByRole("button", { name: "Hand over the car", exact: true }).click();
     expect((await create).status()).toBe(400);
-    await expect(page.getByTestId("handover-submit-error")).toContainText("Buyurtma tasdiqlanmagan");
-    await expect(toast(page, "Buyurtma tasdiqlanmagan")).toBeVisible();
+    await expect(page.getByTestId("handover-submit-error")).toContainText("The order is not confirmed");
+    await expect(toast(page, "The order is not confirmed")).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/${order.id}/handover$`));
     expect((await getOrderApi(order.id)).status).toBe("pending");
   });
@@ -226,34 +226,34 @@ test.describe("manager creates an order for a walk-in customer", () => {
 
     await page.goto("/manager/dashboard");
     await page.getByPlaceholder("Search by car name or plate").fill(car.plate.slice(2));
-    await page.getByRole("button", { name: "Complete car setup" }).click();
+    await page.getByRole("button", { name: "Book this car" }).click();
     await expect(page).toHaveURL(new RegExp(`/manager/orders/form/${car.id}$`));
 
     // validation on an empty form
-    await page.getByRole("button", { name: "Davom etish" }).click();
-    await expect(page.getByText("F.I.Sh ni kiriting")).toBeVisible();
-    await expect(page.getByText("Pasport yoki ID karta raqamini kiriting")).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Enter the full name")).toBeVisible();
+    await expect(page.getByText("Enter passport or ID number")).toBeVisible();
 
     await fillRenterForm(page, { name, phone9, passport: `AC${rand(7)}` });
 
     // Step 2/3
     await expect(page).toHaveURL(/\/manager\/orders\/payment$/);
     // With a single branch it is pre-selected; otherwise pick "Default filial" for pick-up and return.
-    for (let i = 0; i < 2 && (await page.getByText("Filial tanlang").first().isVisible()); i++) {
-      await page.getByText("Filial tanlang").first().click();
-      await openDrawer(page, "Filial tanlang").getByText("Default filial").click();
+    for (let i = 0; i < 2 && (await page.getByText("Select a branch").first().isVisible()); i++) {
+      await page.getByText("Select a branch").first().click();
+      await openDrawer(page, "Select a branch").getByText("Default filial").click();
     }
-    await page.getByPlaceholder("Boshlanish sanasi").click();
-    const dateDrawer = openDrawer(page, "Sana va vaqtni tanlang");
+    await page.getByPlaceholder("Start date").click();
+    const dateDrawer = openDrawer(page, "Select date and time");
     const start = new Date();
     start.setDate(start.getDate() + 3);
     const end = new Date();
     end.setDate(end.getDate() + 5);
     await pickCalendarRange(dateDrawer, start, end);
-    await dateDrawer.getByRole("button", { name: "Tasdiqlash" }).click();
-    await page.locator(".ant-select").filter({ hasText: "Viloyatni tanlang" }).click();
-    await openDrawer(page, "Viloyatni tanlang").getByRole("button", { name: "Toshkent shahri" }).click();
-    await page.getByText("Naqd", { exact: true }).click();
+    await dateDrawer.getByRole("button", { name: "Confirm" }).click();
+    await page.locator(".ant-select").filter({ hasText: "Select a region" }).click();
+    await openDrawer(page, "Select a region").getByRole("button", { name: "Toshkent shahri" }).click();
+    await page.getByText("Cash", { exact: true }).click();
     await page.getByRole("button", { name: "Continue" }).click();
 
     // Step 3/3
@@ -270,7 +270,7 @@ test.describe("manager creates an order for a walk-in customer", () => {
     if (createResp.status() === 400 && (await createResp.text()).includes("filial")) test.fail();
     expect(createResp.status(), await createResp.text()).toBeLessThan(300);
     await expect(page).toHaveURL(/\/manager\/orders\/success$/);
-    await expect(page.getByText("Order completed successfully")).toBeVisible();
+    await expect(page.getByText("Order placed successfully")).toBeVisible();
 
     // backend: order exists with renter data; customer was created
     const api = await Api.staff("manager");
